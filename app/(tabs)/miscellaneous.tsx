@@ -225,9 +225,9 @@ export default function MiscellaneousTab() {
 
           <InputField
             label="Heat per Person"
-            value={miscData.occupancyHeatEquiv?.toString() || '275'}
+            value={miscData.occupancyHeatEquiv?.toString() || '0.275'}
             onChangeText={(value) => handleNumericChange('occupancyHeatEquiv', value)}
-            unit="W"
+            unit="kW"
           />
 
           <InputField

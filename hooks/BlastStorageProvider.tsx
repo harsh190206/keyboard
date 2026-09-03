@@ -243,6 +243,7 @@ export interface BlastCalculationResults {
     doorHeaterLoad: number;        // Excel G31: =(C31*D31*3600*F31)
     trayHeaterLoad: number;        // Excel G33: =(C33*D33*3600*F33)
     drainHeaterLoad: number;       // Excel G34: =(C34*D34*3600*F34)
+    compressorLoad: number;        // Compressor air load: compressorPowerKW x 3600 x running hours
     totalMiscLoad: number;         // Sum of all miscellaneous loads
 
     // Individual TR calculations - Excel formulas
@@ -259,7 +260,8 @@ export interface BlastCalculationResults {
     peripheralHeaterLoadTR: number; // Excel: =G29/(3600*3.517*24)
     doorHeaterLoadTR: number;       // Excel: =G31/(3600*3.517*24)
     trayHeaterLoadTR: number;       // Excel: =G33/(3600*3.517*24)
-    drainHeaterLoadTR: number;     // Excel: =G34/(3600*3.517*24)
+    drainHeaterLoadTR: number;      // Excel: =G34/(3600*3.517*24)
+    compressorLoadTR: number;       // Compressor air load (TR)
 
     // Final results - Excel calculations
     totalLoadKJ: number;           // Excel G36: =SUM(G8:G34)

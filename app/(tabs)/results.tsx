@@ -71,7 +71,7 @@ export default function ColdRoomResultsTab() {
           title: 'Ambient Conditions',
           items: [
             { label: 'Ambient Temperature', value: miscData.ambientTemp?.toString() || '35', unit: `°${miscData.tempUnit || 'C'}` },
-            { label: 'Ambient RH', value: '60', unit: '%' },
+            { label: 'Ambient RH', value: (miscData.ambientRH ?? 55).toString(), unit: '%' },
           ]
         },
         {
@@ -81,7 +81,7 @@ export default function ColdRoomResultsTab() {
             { label: 'Room Width', value: roomData.width?.toString() || '0', unit: roomData.lengthUnit || 'm' },
             { label: 'Room Height', value: roomData.height?.toString() || '0', unit: roomData.lengthUnit || 'm' },
             { label: 'Insulation Thickness', value: roomData.wallInsulationThickness?.toString() || '100', unit: 'mm' },
-            { label: 'Room Internal Volume', value: ((roomData.length || 0) * (roomData.width || 0) * (roomData.height || 0)).toFixed(2), unit: 'm³' },
+            { label: 'Room Internal Volume', value: (results.internalVolume || 0).toFixed(2), unit: 'm³' },
             { label: 'Cold Room Position', value: 'Inside', unit: '' },
             { label: 'Room Temperature', value: miscData.roomTemp?.toString() || '2', unit: `°${miscData.tempUnit || 'C'}` },
             { label: 'Insulation', value: roomData.insulationType || 'PUF', unit: '40 kg/m³' },
@@ -98,8 +98,8 @@ export default function ColdRoomResultsTab() {
             { label: 'Specific Heat Above Freezing', value: productData.cpAboveFreezing?.toString() || '3.5', unit: 'kJ/kg °C' },
             { label: 'Specific Heat Below Freezing', value: productData.cpBelowFreezing?.toString() || '1.8', unit: 'kJ/kg °C' },
             { label: 'Freezing Temp', value: productData.freezingPoint?.toString() || '0', unit: `°${productData.tempUnit || 'C'}` },
-            { label: 'Latent Heat of Freezing', value: '335', unit: 'kJ/kg' },
-            { label: 'Respiration Heat', value: productData.watts?.toString() || '0.00', unit: 'W/kg' },
+            { label: 'Latent Heat of Freezing', value: (productData.latentHeatOfFusion ?? 0).toString(), unit: 'kJ/kg' },
+            { label: 'Respiration Heat', value: productData.watts?.toString() || '0.00', unit: 'W/Tonne' },
           ]
         },
         {
@@ -399,7 +399,7 @@ export default function ColdRoomResultsTab() {
             />
             <ResultCard
               title="Compressor Running Hours"
-              value={miscData.compressorRunningHours ?? 24}
+              value={miscData.compressorRunningHours ?? 18}
               unit="hrs/day"
             />
             <ResultCard

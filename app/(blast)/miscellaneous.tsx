@@ -139,7 +139,7 @@ export default function BlastMiscellaneousTab() {
                             onChangeText={(value) => handleValueChange('occupancyHeatLoad', value)}
                             keyboardType="decimal-pad"
                             placeholder="0.5"
-                            unit="W/person"
+                            unit="kW/person"
                         />
 
                         <InputField

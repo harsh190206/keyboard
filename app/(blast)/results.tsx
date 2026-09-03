@@ -135,6 +135,7 @@ export default function BlastResultsTab() {
                             { label: 'Equipment Load', value: ((results.equipmentLoad || 0) / (3600 * (productData.batchHours || 8))).toFixed(1), unit: 'kW' },
                             { label: 'Occupancy Load', value: ((results.occupancyLoad || 0) / (3600 * (productData.batchHours || 8))).toFixed(1), unit: 'kW' },
                             { label: 'Light Load', value: ((results.lightLoad || 0) / (3600 * (productData.batchHours || 8))).toFixed(1), unit: 'kW' },
+                            { label: 'Compressor Air Load', value: ((results.compressorLoad || 0) / (3600 * (productData.batchHours || 8))).toFixed(1), unit: 'kW' },
                             { label: 'Total Miscellaneous Load', value: ((results.totalMiscLoad || 0) / (3600 * (productData.batchHours || 8))).toFixed(1), unit: 'kW' },
                         ]
                     },
@@ -410,6 +411,7 @@ export default function BlastResultsTab() {
                         <ResultCard title="Door Heater Load" value={results.doorHeaterLoad / (3600 * (productData.batchHours || 8))} unit="kW" />
                         <ResultCard title="Tray Heater Load" value={results.trayHeaterLoad / (3600 * (productData.batchHours || 8))} unit="kW" />
                         <ResultCard title="Drain Heater Load" value={results.drainHeaterLoad / (3600 * (productData.batchHours || 8))} unit="kW" />
+                        <ResultCard title="Compressor Air Load" value={(results.compressorLoad || 0) / (3600 * (productData.batchHours || 8))} unit="kW" />
                         <ResultCard
                             title="Total Miscellaneous Load"
                             value={results.totalMiscLoad / (3600 * (productData.batchHours || 8))}

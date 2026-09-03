@@ -190,6 +190,7 @@ export interface CalculationResults {
   occupancyLoad: number; // G27 in Excel (kJ/24Hr)
   lightLoad: number; // G29 in Excel (kJ/24Hr)
   doorHeaterLoad: number; // G33 in Excel (kJ/24Hr)
+  compressorLoad?: number; // Compressor air load (from compressorPowerKW x running hours)
   totalMiscLoad: number; // Sum of G25, G27, G29, G33
 
   // Final results (Excel structure)
@@ -221,6 +222,7 @@ export interface CalculationResults {
   occupancyLoadTR: number; // H27 in Excel (TR)
   lightLoadTR: number; // H29 in Excel (TR)
   doorHeaterLoadTR: number; // H33 in Excel (TR)
+  compressorLoadTR?: number; // Compressor air load (TR)
   totalLoadTR: number; // H39 in Excel (TR)
 
   // Temperature differences (Excel structure)

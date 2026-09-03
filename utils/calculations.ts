@@ -216,13 +216,13 @@ export const calculateHeatLoad = (
   const floorTempDiff = 28 - roomTempC; // Excel uses 28°C for floor, not ambient temp
   const productTempDiff = productIncomingC - productOutgoingC;
 
-  // Calculate areas (Excel exact formulas)
-  // Excel: Walls = ((E3+F3)*2*G3) = ((B+H)*2*L)
-  const totalWallArea = (width + height) * 2 * length;
-  // Excel: Ceiling = F3*E3 = L*B
+  // Calculate areas
+  // Wall area = perimeter x height = 2*(L+B)*H
+  // (was previously 2*(B+H)*L, which mixes height into the perimeter and
+  //  multiplies by length - that inflated the wall area on any room where L != H)
+  const totalWallArea = 2 * (length + width) * height;
   const ceilingArea = length * width;
-  // Excel: Floor = E3*F3 = B*L
-  const floorArea = width * length;
+  const floorArea = length * width;
 
   // Calculate internal volume (Excel formula: =G4-SUM(D8:D10)*(D51/1000)-((D53/1000)*D9))
   // Simplified for now - will implement full formula later
@@ -479,7 +479,9 @@ export const calculateHeatLoad = (
   });
 
   // Individual TR calculations (Excel: =G8/(3600*3.517*24))
-  const trConversionFactor = 3600 * 3.517 * 24;
+  // The same compressor-running-hours factor that is applied to the total must be
+  // applied here as well, otherwise the breakdown does not add up to the total TR.
+  const trConversionFactor = (3600 * 3.517 * 24) / hoursAdjustmentFactor;
   const wallLoadTR = wallLoad / trConversionFactor;
   const ceilingLoadTR = ceilingLoad / trConversionFactor;
   const floorLoadTR = floorLoad / trConversionFactor;
@@ -502,19 +504,32 @@ export const calculateHeatLoad = (
     lightLoadTR +
     doorHeaterLoadTR;
 
-  // Sensible and Latent Heat (Excel: G44, G45, G46)
-  // For cold room, sensible heat includes most loads, latent heat is minimal
+  // Sensible and Latent Heat
+  // Only the genuinely moisture-related fractions belong in the latent bucket:
+  //   - the phase-change (latent heat of fusion) part of the product load
+  //   - 60% of the infiltration/air-change load
+  //   - 60% of the occupancy load (people are ~40% sensible in a cold space)
+  // Respiration heat is sensible, not latent, and transmission/equipment/lighting
+  // /door-heater loads are fully sensible. sensibleHeat + latentHeat === totalLoadKJ.
+  const productLatentLoad =
+    ((m_cr * latentTerm_cr * 24) / coolingTime_cr) * rhCorrectionInside;
+  const productSensibleLoad = productLoad - productLatentLoad;
+
   const sensibleHeat =
     wallLoad +
     ceilingLoad +
     floorLoad +
-    productLoad +
+    productSensibleLoad +
+    respirationLoad +
+    0.4 * airChangeLoad +
     equipmentLoad +
-    occupancyLoad +
+    0.4 * occupancyLoad +
     lightLoad +
     doorHeaterLoad;
-  const latentHeat = respirationLoad + airChangeLoad;
-  const sensibleHeatRatio = sensibleHeat / totalLoadKJ;
+  const latentHeat =
+    productLatentLoad + 0.6 * airChangeLoad + 0.6 * occupancyLoad;
+  const sensibleHeatRatio =
+    totalLoadKJ > 0 ? sensibleHeat / totalLoadKJ : 0;
 
   // Air Quantity Required (Excel: G47 = ((G42*12000)*G46)/(5*1.08))
   const airQtyRequired =
@@ -775,32 +790,33 @@ export const calculateFreezerHeatLoad = (
   // MISCELLANEOUS LOADS (kJ/24Hr) - EXACT Excel calculations
 
   // Fan Motor Rating - Excel shows 0.37 KW with Quantity 3, Usage 16/24 hrs
-  const fanMotorRating = miscData.fanMotorRating || 0.37; // kW per fan
-  const fanQuantity = miscData.fanQuantity || 6; // Number of fans
-  const fanUsageHours = miscData.fanUsageHours || 24; // Hours of usage
+  // NOTE: `??` (not `||`) so that a deliberate user entry of 0 is respected.
+  const fanMotorRating = miscData.fanMotorRating ?? 0.37; // kW per fan
+  const fanQuantity = miscData.fanQuantity ?? 6; // Number of fans
+  const fanUsageHours = miscData.fanUsageHours ?? 24; // Hours of usage
   const fanMotorLoad = fanMotorRating * fanQuantity * 3600 * fanUsageHours;
 
   // No of people - Excel shows 4 with Heat Equiv 0.407 kW
-  const numberOfPeople = miscData.numberOfPeople || 4;
-  const peopleUsageFactor = miscData.peopleUsageFactor || 0.407; // kW heat equiv
+  const numberOfPeople = miscData.numberOfPeople ?? 4;
+  const peopleUsageFactor = miscData.peopleUsageFactor ?? 0.407; // kW heat equiv
   const peopleLoad =
     numberOfPeople * peopleUsageFactor * 3600 * miscData.occupancyUsageHours;
 
   // Light load - Excel shows 0.14 kW with Usage 16 hrs
-  const lightPowerKw = miscData.lightPowerKw || 0.14;
-  const lightUsageHrs = miscData.lightUsageHours || 16;
+  const lightPowerKw = miscData.lightPowerKw ?? 0.14;
+  const lightUsageHrs = miscData.lightUsageHours ?? 16;
   const lightLoadExact = lightPowerKw * 3600 * lightUsageHrs;
 
   // Heater capacity - Excel shows different heater types (continuous operation)
   // Peripheral heaters
-  const peripheralHeaterPower = miscData.peripheralHeaterPower || 1.5; // kW per heater
-  const peripheralHeaterQuantity = miscData.peripheralHeaterQuantity || 8; // Number of heaters
+  const peripheralHeaterPower = miscData.peripheralHeaterPower ?? 1.5; // kW per heater
+  const peripheralHeaterQuantity = miscData.peripheralHeaterQuantity ?? 8; // Number of heaters
   const peripheralHeatersLoad =
     peripheralHeaterPower * peripheralHeaterQuantity * 3600 * 24; // 24 hrs continuous
 
   // Door heaters - Excel formula: =IF(D59>5.(((D68+E68)*2)/1000)*0.025.(((D68+E68)*2)/1000)*0.045)
-  let doorWidth = miscData.doorClearOpeningWidth || 900; // default value
-  let doorHeight = miscData.doorClearOpeningHeight || 1800; // default value
+  let doorWidth = miscData.doorClearOpeningWidth ?? 900; // default value
+  let doorHeight = miscData.doorClearOpeningHeight ?? 1800; // default value
 
   // Convert to mm if units are in meters
   if (miscData.doorDimensionUnit === 'm') {
@@ -813,18 +829,21 @@ export const calculateFreezerHeatLoad = (
 
   // Excel logic: if room temp > 5°C, use 0.025, else use 0.045
   const doorHeaterFactor = roomTempC > 5 ? 0.025 : 0.045;
-  const doorHeaterPower = doorPerimeterM * doorHeaterFactor; // kW per door
-  const doorHeaterQuantity = miscData.doorHeaterQuantity || 1; // Number of doors
+  // Use the user-entered door heater power when supplied (the Miscellaneous screen
+  // exposes this field); otherwise derive it from the door perimeter.
+  const doorHeaterPower =
+    miscData.doorHeaterPower ?? doorPerimeterM * doorHeaterFactor; // kW per door
+  const doorHeaterQuantity = miscData.doorHeaterQuantity ?? 1; // Number of doors
   const doorHeatersLoad = doorHeaterPower * doorHeaterQuantity * 3600 * 24; // 24 hrs continuous
 
   // Tray heaters - Excel shows 2 kW, 2 heaters, 2 hrs
-  const trayHeaterPower = miscData.trayHeaterPower || 2; // kW per tray
-  const trayHeaterQuantity = miscData.trayHeaterQuantity || 2; // Number of trays
+  const trayHeaterPower = miscData.trayHeaterPower ?? 2; // kW per tray
+  const trayHeaterQuantity = miscData.trayHeaterQuantity ?? 2; // Number of trays
   const trayHeatersLoad = trayHeaterPower * trayHeaterQuantity * 3600 * 2; // 2 hrs usage
 
   // Drain heaters
-  const drainHeaterPower = miscData.drainHeaterPower || 0.04; // kW per drain
-  const drainHeaterQuantity = miscData.drainHeaterQuantity || 1; // Number of drains
+  const drainHeaterPower = miscData.drainHeaterPower ?? 0.04; // kW per drain
+  const drainHeaterQuantity = miscData.drainHeaterQuantity ?? 1; // Number of drains
   const drainHeatersLoad = drainHeaterPower * drainHeaterQuantity * 3600 * 24; // 24 hrs continuous
 
   // Total heater load
@@ -846,11 +865,22 @@ export const calculateFreezerHeatLoad = (
   // Steam humidifiers: Excel shows 0 for freezer
   const steamHumidifierLoad = 0;
 
+  // COMPRESSOR AIR LOAD (kJ/24Hr)
+  // The Miscellaneous screen exposes "Compressor Power (kW)" and "Compressor
+  // Running Hours (hrs/day)"; both were previously collected but never used in any
+  // formula, so changing them had no effect on the result. Same shape as every
+  // other miscellaneous load: kW x 3600 s/h x hours. Both default to 0.
+  const compressorLoad =
+    (miscData.compressorPowerKW ?? 0) *
+    3600 *
+    (miscData.compressorAirRunningHours ?? 0);
+
   const totalMiscLoad =
     equipmentLoad +
     occupancyLoad +
     lightLoad +
     heaterLoad +
+    compressorLoad +
     steamHumidifierLoad;
 
   // TOTAL LOAD CALCULATIONS - EXACT Excel formulas
@@ -898,6 +928,7 @@ export const calculateFreezerHeatLoad = (
   const occupancyLoadTR = occupancyLoad / trConversionFactor;
   const lightLoadTR = lightLoad / trConversionFactor;
   const heaterLoadTR = heaterLoad / trConversionFactor;
+  const compressorLoadTR = compressorLoad / trConversionFactor;
   const totalLoadTR =
     wallLoadTR +
     ceilingLoadTR +
@@ -908,19 +939,28 @@ export const calculateFreezerHeatLoad = (
     equipmentLoadTR +
     occupancyLoadTR +
     lightLoadTR +
-    heaterLoadTR;
+    heaterLoadTR +
+    compressorLoadTR;
 
-  // Sensible and Latent Heat (Excel: G44, G45, G46)
+  // Sensible and Latent Heat
+  // The latent bucket holds the phase-change part of the product load plus the
+  // moisture-driven fractions of infiltration and occupancy. The previous version
+  // dropped latentHeatLoad from both buckets entirely, so sensible + latent did not
+  // add up to the total load and the SHR came out too low.
   const sensibleHeat =
     totalTransmissionLoad +
     beforeFreezingLoad +
     afterFreezingLoad +
+    respirationLoad +
+    0.4 * airChangeLoad +
     equipmentLoad +
-    occupancyLoad +
+    0.4 * occupancyLoad +
     lightLoad +
-    heaterLoad;
-  const latentHeat = respirationLoad + airChangeLoad;
-  const sensibleHeatRatio = sensibleHeat / totalLoadKJ;
+    heaterLoad +
+    compressorLoad;
+  const latentHeat =
+    latentHeatLoad + 0.6 * airChangeLoad + 0.6 * occupancyLoad;
+  const sensibleHeatRatio = totalLoadKJ > 0 ? sensibleHeat / totalLoadKJ : 0;
 
   // Air Quantity Required (Excel: G47 = ((G42*12000)*G46)/(5*1.08))
   const airQtyRequired =
@@ -956,6 +996,7 @@ export const calculateFreezerHeatLoad = (
     lightLoad: lightLoad / kWFactor,
     doorHeaterLoad:
       (doorHeatersLoad + trayHeatersLoad + drainHeatersLoad) / kWFactor, // Combined heater loads
+    compressorLoad: compressorLoad / kWFactor,
     totalMiscLoad: totalMiscLoad / kWFactor,
     totalLoadKJ,
     totalLoadKw,
@@ -981,6 +1022,7 @@ export const calculateFreezerHeatLoad = (
     occupancyLoadTR,
     lightLoadTR,
     doorHeaterLoadTR: heaterLoadTR,
+    compressorLoadTR,
     totalLoadTR,
 
     // Temperature differences
@@ -1082,39 +1124,48 @@ export const calculateBlastHeatLoad = (
     roomData.floorHours;
   const totalTransmissionLoad = wallLoad + ceilingLoad + floorLoad;
 
-  // PRODUCT LOADS - Excel formulas G14, G15, G16
-  // Calculate temperature differences for product
-  const tempDiffBeforeFreezing = productEnteringTempC - freezingPointC; // -5 - (-1.7) = -3.3K
-  const tempDiffAfterFreezing = freezingPointC - productFinalTempC; // -1.7 - (-30) = 28.3K
+  // PRODUCT LOADS - stage-aware, same master equation used by the cold room and
+  // freezer calculators:
+  //   Q = m x [ Ca(Tin - Tf) + L + Cb(Tf - Tout) ] x (BatchHours / PullDownHours)
+  // Each stage only contributes when the product temperature actually crosses it.
+  // The previous version applied all three stages unconditionally, which produced a
+  // NEGATIVE "before freezing" term whenever the product entered already frozen
+  // (Tin < Tf) and still charged the full latent heat even though no phase change
+  // takes place.
+  const batchRatio = productData.batchHours / productData.pullDownHours;
 
-  // Excel G14: =C14*D14*E14*(D46/F14) - Before freezing
-  // C14=Mass(2000), D14=Cp(3.49), E14=TempDiff(-3.3), D46=BatchHours(8), F14=PullDownHours(8)
-  // Result: =2000*3.49*(-3.3)*(8/8) = -23034 kJ
+  // Stage 1: sensible cooling ABOVE the freezing point
+  const tempDiffBeforeFreezing =
+    productEnteringTempC > freezingPointC
+      ? productEnteringTempC - Math.max(productFinalTempC, freezingPointC)
+      : 0;
+
+  // Stage 3: sensible cooling BELOW the freezing point
+  const tempDiffAfterFreezing =
+    productFinalTempC < freezingPointC
+      ? Math.min(productEnteringTempC, freezingPointC) - productFinalTempC
+      : 0;
+
   const beforeFreezingLoad =
-    massKg *
-    productData.cpAboveFreezing *
-    tempDiffBeforeFreezing *
-    (productData.batchHours / productData.pullDownHours);
+    massKg * productData.cpAboveFreezing * tempDiffBeforeFreezing * batchRatio;
 
-  // Excel G15: =(C15*D15)*(D46/F15) - Latent heat
-  // C15=Mass(2000), D15=LatentHeat(233), D46=BatchHours(8), F15=PullDownHours(8)
-  // Result: =(2000*233)*(8/8) = 466000 kJ
-  const latentHeatLoad =
-    massKg *
-    productData.latentHeat *
-    (productData.batchHours / productData.pullDownHours);
+  // Stage 2: latent heat only when the product actually crosses the freezing point
+  const crossesFreezing =
+    productEnteringTempC > freezingPointC && productFinalTempC < freezingPointC;
+  const latentHeatLoad = crossesFreezing
+    ? massKg * productData.latentHeat * batchRatio
+    : 0;
 
-  // Excel G16: =(C16*D16*E16)*(D46/F16) - After freezing
-  // C16=Mass(2000), D16=Cp(2.14), E16=TempDiff(28.3), D46=BatchHours(8), F16=PullDownHours(8)
-  // Result: =(2000*2.14*28.3)*(8/8) = 121124 kJ
   const afterFreezingLoad =
-    massKg *
-    productData.cpBelowFreezing *
-    tempDiffAfterFreezing *
-    (productData.batchHours / productData.pullDownHours);
+    massKg * productData.cpBelowFreezing * tempDiffAfterFreezing * batchRatio;
 
   const totalProductLoad =
     beforeFreezingLoad + latentHeatLoad + afterFreezingLoad;
+
+  console.log(
+    `[Blast - Product Load] Tin=${productEnteringTempC}C, Tf=${freezingPointC}C, Tout=${productFinalTempC}C -> ` +
+      `before=${beforeFreezingLoad.toFixed(0)}, latent=${latentHeatLoad.toFixed(0)}, after=${afterFreezingLoad.toFixed(0)} kJ`,
+  );
 
   // AIR CHANGE LOAD - Excel formula G20
   // Excel: =C20*D20*3600*F20
@@ -1142,9 +1193,10 @@ export const calculateBlastHeatLoad = (
     3600 *
     miscData.occupancyHours;
 
-  // Excel G27: =(C27*3.6)*F27 - Light load in kJ
-  // C27=0.1, F27=1.2, Result: =0.1*3.6*1.2 = 0.432 kJ
-  const lightLoad = miscData.lightLoad * 3.6 * miscData.lightHours;
+  // Light load in kJ. lightLoad is entered in kW (see the "kW" unit on the input),
+  // so the conversion is kW x 3600 s/h x hours. The old x3.6 factor was the W-based
+  // conversion and made this load 1000x too small.
+  const lightLoad = miscData.lightLoad * 3600 * miscData.lightHours;
 
   // Excel G29: =(C29*D29*3600*F29) - Peripheral heater load in kJ
   // C29=1.5, D29=1, F29=8, Result: =1.5*1*3600*8 = 43200 kJ
@@ -1178,6 +1230,15 @@ export const calculateBlastHeatLoad = (
     3600 *
     miscData.drainHeaterHours;
 
+  // COMPRESSOR AIR LOAD (kJ)
+  // The Miscellaneous screen exposes "Compressor Power (kW)" and "Compressor
+  // Running Hours (hrs/day)"; both were previously collected but never used in any
+  // formula, so changing them had no effect on the result. Both default to 0.
+  const compressorLoad =
+    (miscData.compressorPowerKW ?? 0) *
+    3600 *
+    (miscData.compressorAirRunningHours ?? 0);
+
   const totalMiscLoad =
     equipmentLoad +
     occupancyLoad +
@@ -1185,7 +1246,8 @@ export const calculateBlastHeatLoad = (
     peripheralHeaterLoad +
     doorHeaterLoad +
     trayHeaterLoad +
-    drainHeaterLoad;
+    drainHeaterLoad +
+    compressorLoad;
 
   // FINAL CALCULATIONS - Excel formulas G36, G37, G38, G39, G40, G41, G42, G43
   // Excel G36: =SUM(G8:G34) = 24059+8592+6940+(-23034)+466000+121124+4233.6+31968+1800+0.432+43200+7776+3168+1152 = 696925 kJ
@@ -1217,14 +1279,23 @@ export const calculateBlastHeatLoad = (
     finalCapacity: finalCapacity.toFixed(3),
   });
 
-  // Excel G40: =SUM(G8:G14)+SUM(G16:G17)+0.4*C (simplified)
+  // Sensible / latent split. Everything that is not phase change or moisture driven
+  // is sensible, including the miscellaneous equipment, lighting and heater loads
+  // (these were previously left out of both buckets, skewing the SHR).
   const sensibleHeatKJ24Hr =
     totalTransmissionLoad +
     beforeFreezingLoad +
     afterFreezingLoad +
-    0.4 * airChangeLoad;
+    0.4 * airChangeLoad +
+    equipmentLoad +
+    0.4 * occupancyLoad +
+    lightLoad +
+    peripheralHeaterLoad +
+    doorHeaterLoad +
+    trayHeaterLoad +
+    drainHeaterLoad +
+    compressorLoad;
 
-  // Excel G41: =G15+0.6*G20+0.6*G25
   const latentHeatKJ24Hr =
     latentHeatLoad + 0.6 * airChangeLoad + 0.6 * occupancyLoad;
 
@@ -1250,6 +1321,7 @@ export const calculateBlastHeatLoad = (
   const doorHeaterLoadTR = doorHeaterLoad / trConversionFactor;
   const trayHeaterLoadTR = trayHeaterLoad / trConversionFactor;
   const drainHeaterLoadTR = drainHeaterLoad / trConversionFactor;
+  const compressorLoadTR = compressorLoad / trConversionFactor;
 
   return {
     wallLoad,
@@ -1268,6 +1340,7 @@ export const calculateBlastHeatLoad = (
     doorHeaterLoad,
     trayHeaterLoad,
     drainHeaterLoad,
+    compressorLoad,
     totalMiscLoad,
     totalLoadKJ,
     totalLoadKw,
@@ -1297,5 +1370,6 @@ export const calculateBlastHeatLoad = (
     doorHeaterLoadTR,
     trayHeaterLoadTR,
     drainHeaterLoadTR,
+    compressorLoadTR,
   };
 };

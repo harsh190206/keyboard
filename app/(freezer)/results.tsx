@@ -142,6 +142,7 @@ export default function FreezerResultsTab() {
               { label: 'Lighting Load', value: (results.lightLoad || 0).toFixed(1), unit: 'kW' },
               { label: 'Heater Load', value: (results.doorHeaterLoad || 0).toFixed(1), unit: 'kW' },
               { label: 'Occupancy Load', value: (results.occupancyLoad || 0).toFixed(1), unit: 'kW' },
+              { label: 'Compressor Air Load', value: (results.compressorLoad || 0).toFixed(1), unit: 'kW' },
               { label: 'Total Miscellaneous Load', value: (results.totalMiscLoad || 0).toFixed(1), unit: 'kW' },
             ]
           },
@@ -405,6 +406,7 @@ export default function FreezerResultsTab() {
             <ResultCard title="Equipment Load" value={results.equipmentLoad} unit="kW" />
             <ResultCard title="Lighting Load" value={results.lightLoad} unit="kW" />
             <ResultCard title="Heater Load" value={results.doorHeaterLoad || 0} unit="kW" />
+            <ResultCard title="Compressor Air Load" value={results.compressorLoad || 0} unit="kW" />
             <ResultCard title="Occupancy Load" value={results.occupancyLoad} unit="kW" />
             <ResultCard
               title="Total Miscellaneous Load"
