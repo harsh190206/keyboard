@@ -8,7 +8,12 @@
     "build:web": "expo export --platform web",
     "lint": "expo lint",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "typecheck": "tsc --noEmit",
+    "prebuild:android": "expo prebuild --clean --platform android",
+    "build:android": "npm run prebuild:android && eas build --platform android --profile production",
+    "build:android:apk": "npm run prebuild:android && eas build --platform android --profile production-apk",
+    "version:show": "eas build:version:get --platform android"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
