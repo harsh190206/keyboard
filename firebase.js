@@ -5,12 +5,12 @@ import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const firebaseConfig = {
-    apiKey: "AIzaSyA1AhcHvYfeAClJEIssiSssEbnpKifeQ-8",
-    authDomain: "enzo-d373f.firebaseapp.com",
-    projectId: "enzo-d373f",
-    storageBucket: "enzo-d373f.firebasestorage.app",
-    messagingSenderId: "553571608389",
-    appId: "1:553571608389:web:1059436d6512bd5fa8402c",
+    apiKey: "AIzaSyDJ48xdhE7vzpvLZki4xpmlPs_npWQ3yqg",
+    authDomain: "enzocoolcal.firebaseapp.com",
+    projectId: "enzocoolcal",
+    storageBucket: "enzocoolcal.firebasestorage.app",
+    messagingSenderId: "1038545137524",
+    appId: "1:1038545137524:web:9bd6993787d5b57b5c0621",
 };
 
 // Initialize modular SDK

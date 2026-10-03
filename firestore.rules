@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{userId} {
+      // Sign-in / sign-up check "does this phone exist?" before login.
+      // Allowed only as a single-result query (app uses limit(1)), so the full list can't be dumped.
+      allow list: if request.query.limit <= 1;
+
+      // Own profile only
+      allow get, update, delete: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.resource.data.uid == userId;
+    }
+
+    match /user_calculations/{docId} {
+      // Document ID is `${uid}_${calculationType}` and stores userId
+      allow read, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create, update: if request.auth != null
+                            && request.resource.data.userId == request.auth.uid
+                            && docId.matches(request.auth.uid + '_.*');
+    }
+
+    // Everything else is denied
+  }
+}

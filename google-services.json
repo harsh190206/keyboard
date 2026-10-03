@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "553571608389",
-    "project_id": "enzo-d373f",
-    "storage_bucket": "enzo-d373f.firebasestorage.app"
+    "project_number": "1038545137524",
+    "project_id": "enzocoolcal",
+    "storage_bucket": "enzocoolcal.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:553571608389:android:14024639496705f5a8402c",
+        "mobilesdk_app_id": "1:1038545137524:android:fb0f8d0d6a2ce9365c0621",
         "android_client_info": {
           "package_name": "com.enzo.coolcalc"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyB1HcvekfZu5Zj1_K_jB_nqVMUzjv_RNQI"
+          "current_key": "AIzaSyB8HDvErtKsBg1q1ULrnROiEtiYQcee8tU"
         }
       ],
       "services": {

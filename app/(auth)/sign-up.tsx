@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, Alert, KeyboardAvoidingView, Platform, ScrollView, Image, Dimensions, Modal, FlatList } from 'react-native';
 import { FirebaseRecaptchaVerifierModal, FirebaseRecaptchaVerifierModalHandle } from '@/components/FirebaseRecaptcha';
 import { PhoneAuthProvider, signInWithCredential } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { auth, db, firebaseConfig } from '@/firebase';
 import { router } from 'expo-router';
 import { useAuth } from '@/hooks/AuthProvider';
@@ -167,7 +167,7 @@ export default function SignUpScreen() {
                 console.log('[SignUp] ✅ Collection reference created');
                 
                 console.log('[SignUp] 🔍 Step 2: Creating query...');
-                const phoneQuery = query(usersRef, where('phone', '==', fullPhoneNumber));
+                const phoneQuery = query(usersRef, where('phone', '==', fullPhoneNumber), limit(1));
                 console.log(`[SignUp] ✅ Query created: WHERE phone == "${fullPhoneNumber}"`);
                 
                 console.log('[SignUp] 🔍 Step 3: Executing Firestore query...');

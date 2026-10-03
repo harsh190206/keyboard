@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, Alert, KeyboardAvoidingView, Platform, ScrollView, Image, Dimensions } from 'react-native';
 import { FirebaseRecaptchaVerifierModal, FirebaseRecaptchaVerifierModalHandle } from '@/components/FirebaseRecaptcha';
 import { PhoneAuthProvider, signInWithCredential } from 'firebase/auth';
-import { query, collection, where, getDocs } from 'firebase/firestore';
+import { query, collection, where, getDocs, limit } from 'firebase/firestore';
 import { auth, db, firebaseConfig } from '@/firebase';
 import { router } from 'expo-router';
 import { useAuth } from '@/hooks/AuthProvider';
@@ -54,7 +54,7 @@ export default function SignInScreen() {
             console.log(`[SignIn] Checking for existing user with phone: ${fullPhoneNumber}`);
 
             const usersRef = collection(db, 'users');
-            const q = query(usersRef, where('phone', '==', fullPhoneNumber));
+            const q = query(usersRef, where('phone', '==', fullPhoneNumber), limit(1));
             const querySnapshot = await getDocs(q);
 
             if (querySnapshot.empty) {

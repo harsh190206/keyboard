@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, Alert, KeyboardAvoidingView, Platform, ScrollView, Image, Dimensions } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { updatePassword as firebaseUpdatePassword } from 'firebase/auth';
-import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/firebase';
 import bcrypt from 'bcryptjs';
 
@@ -42,21 +42,14 @@ export default function UpdatePasswordScreen() {
             await firebaseUpdatePassword(currentUser, newPassword);
             console.log('[UpdatePassword] Successfully updated password in Firebase Auth.');
 
-            // Step 2: Update the password in the Firestore 'users' collection.
-            const usersRef = collection(db, 'users');
-            const q = query(usersRef, where('phone', '==', `+91${phone}`));
-            const querySnapshot = await getDocs(q);
-
-            if (!querySnapshot.empty) {
-                const userDocRef = querySnapshot.docs[0].ref;
-                await updateDoc(userDocRef, {
-                    password: newPassword, // Storing the new password
+            // Step 2: Touch the user's Firestore profile. The password itself lives only in Firebase Auth.
+            try {
+                await updateDoc(doc(db, 'users', currentUser.uid), {
                     updatedAt: new Date(),
                 });
-                console.log('[UpdatePassword] Successfully updated password in Firestore.');
-            } else {
-                // This is a fallback, as the user should exist if they got to this screen.
-                console.warn('[UpdatePassword] Could not find user in Firestore to update password, but Auth password was changed.');
+                console.log('[UpdatePassword] Updated user profile timestamp in Firestore.');
+            } catch (e) {
+                console.warn('[UpdatePassword] Could not update user profile in Firestore, but Auth password was changed.', e);
             }
 
             // Step 3: Sign the user out and redirect to the sign-in page.
