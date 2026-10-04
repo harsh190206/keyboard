@@ -132,6 +132,14 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
             // First, try to delete without re-authentication
             try {
+                // Delete the user's saved calculations (one doc per type: `${uid}_${type}`).
+                // Missing docs are rejected by rules, so ignore individual failures.
+                const calculationTypes = ['cold_room', 'blast_freezer', 'freezer_room'];
+                await Promise.allSettled(
+                    calculationTypes.map((type) => deleteDoc(doc(db, 'user_calculations', `${user.uid}_${type}`)))
+                );
+                console.log('[AuthProvider] User calculations deleted from Firestore');
+
                 // Delete user document from Firestore
                 const userDocRef = doc(db, 'users', user.uid);
                 await deleteDoc(userDocRef);
