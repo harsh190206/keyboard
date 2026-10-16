@@ -13,29 +13,15 @@ import {
   BlastMiscellaneousData,
   BlastCalculationResults,
 } from '@/hooks/BlastStorageProvider';
-import { freezerProducts } from '@/data/freezerProducts';
+import { estimateLatentHeat } from '@/data/products';
 
-// Helper function to get latent heat of fusion for a product
-// Falls back to freezerProducts lookup if not provided in productData
+// Latent heat of fusion for a cold room product: the user / preset value when given,
+// otherwise the freezer table value or Siebel's estimate (see estimateLatentHeat).
 const getLatentHeatOfFusion = (productData: ProductData): number => {
-  // If latentHeatOfFusion is provided in productData, use it
   if (productData.latentHeatOfFusion !== undefined && productData.latentHeatOfFusion > 0) {
     return productData.latentHeatOfFusion;
   }
-  
-  // Try to find matching product in freezerProducts
-  const productName = productData.productName || '';
-  const matchingProduct = freezerProducts.find(
-    p => p.name.toLowerCase() === productName.toLowerCase()
-  );
-  
-  if (matchingProduct) {
-    return matchingProduct.latentHeatOfFusion;
-  }
-  
-  // Default latent heat value (average for frozen products)
-  // Most products have latent heat around 200-250 kJ/kg
-  return 200; // Reasonable default for products crossing freezing point
+  return estimateLatentHeat(productData.productName, productData.cpAboveFreezing);
 };
 
 // Unit conversion utilities
@@ -136,34 +122,218 @@ const calculateUFactor = (
   return 1 / R_total;
 };
 
-// Storage capacity validation (Excel methodology)
-const validateStorageCapacity = (
-  storageCapacity: number, // kg/m³
-  maximumStorage: number, // kg
-  roomVolume: number, // m³
-): { isValid: boolean; maxCapacity: number; utilizationPercent: number } => {
-  const maxCapacity = storageCapacity * roomVolume; // Maximum theoretical capacity
-  const utilizationPercent = (maximumStorage / maxCapacity) * 100;
-  const isValid = maximumStorage <= maxCapacity;
-
-  return {
-    isValid,
-    maxCapacity,
-    utilizationPercent,
-  };
+// FLOOR U-FACTOR
+// Insulated floor: same layered calculation as walls and ceiling.
+// Uninsulated floor (thickness 0) on the ground: ISO 13370 slab-on-ground method,
+// because the ground under the slab adds its own resistance (a plain air-to-air
+// U-factor would overstate the floor load several times).
+//   B' = A / (0.5 P)                      characteristic floor dimension (m)
+//   dt = w + λg (Rsi + Rf + Rse)          equivalent thickness (m)
+//   U  = 2 λg / (π B' + dt) × ln(π B' / dt + 1)   when dt < B'
+//   U  = λg / (0.457 B' + dt)                     otherwise
+const calculateFloorUFactor = (
+  floorInsulationThickness: number,
+  insulationType: string,
+  lengthM: number,
+  widthM: number,
+  wallThicknessMm: number,
+): number => {
+  if (floorInsulationThickness > 0) {
+    return calculateUFactor(floorInsulationThickness, insulationType);
+  }
+  const lambdaGround = 2.0; // W/m·K, clay / silt (ISO 13370 default)
+  const R_si = 0.17; // internal surface, heat flow downward
+  const R_floor = 0.15; // concrete slab / floor finish (same as structure above)
+  const R_se = 0.04;
+  const area = lengthM * widthM;
+  const perimeter = 2 * (lengthM + widthM);
+  if (area <= 0 || perimeter <= 0) return calculateUFactor(0, insulationType);
+  const B = area / (0.5 * perimeter);
+  const dt = wallThicknessMm / 1000 + lambdaGround * (R_si + R_floor + R_se);
+  return dt < B
+    ? ((2 * lambdaGround) / (Math.PI * B + dt)) * Math.log((Math.PI * B) / dt + 1)
+    : lambdaGround / (0.457 * B + dt);
 };
 
-// Air circulation calculation based on storage capacity (Excel methodology)
-const calculateAirFlowRequirement = (
-  totalLoad: number, // Total cooling load in W
-  tempDiff: number, // Temperature difference in K
-  storageCapacity: number, // kg/m³
+// INTERNAL (NET) VOLUME
+// Room length / width / height are entered as outside dimensions (same as the
+// reference spreadsheet), so the usable volume is what is left after the panels on
+// every side and the floor finish (screed) are taken out.
+export const calculateInternalVolume = (
+  lengthM: number,
+  widthM: number,
+  heightM: number,
+  wallThicknessMm: number,
+  ceilingThicknessMm: number,
+  floorThicknessMm: number,
+  floorFinishMm: number = 100,
 ): number => {
-  // Excel formula: CFM = Load / (1.08 × ΔT × density_factor)
-  // Higher storage capacity requires more air circulation
-  const densityFactor = Math.max(1.0, storageCapacity / 100); // Adjustment factor
-  const tempDiffF = (tempDiff * 9) / 5; // Convert K to °F difference
-  return totalLoad / (1.08 * tempDiffF * densityFactor);
+  const tWall = wallThicknessMm / 1000;
+  const innerLength = lengthM - 2 * tWall;
+  const innerWidth = widthM - 2 * tWall;
+  const innerHeight =
+    heightM - (ceilingThicknessMm + floorThicknessMm + floorFinishMm) / 1000;
+  if (innerLength <= 0 || innerWidth <= 0 || innerHeight <= 0) return 0;
+  return innerLength * innerWidth * innerHeight;
+};
+
+// STORAGE CAPACITY
+// Maximum storage (kg) = internal volume (ft³) x gross storage density (kg/ft³).
+// The density is a gross figure per ft³ of room volume, so it already allows for
+// pallets, aisles, stacking height limits and air-circulation clearances.
+export const M3_TO_FT3 = 35.3147;
+export const calculateMaximumStorage = (
+  internalVolumeM3: number,
+  storageDensityKgPerFt3: number,
+): number => internalVolumeM3 * M3_TO_FT3 * storageDensityKgPerFt3;
+
+// AIR CHANGES PER 24 HOURS (door openings + infiltration)
+// Standard table used across the industry (ASHRAE / Heatcraft / Bohn load
+// estimating data): average air changes per 24 h for storage rooms, by room volume.
+// [volume ft³, above 0°C (32°F), below 0°C (32°F)]
+const AIR_CHANGE_TABLE: [number, number, number][] = [
+  [200, 44.0, 33.5],
+  [250, 38.0, 29.0],
+  [300, 34.5, 26.2],
+  [400, 29.5, 22.5],
+  [500, 26.0, 20.0],
+  [600, 23.0, 18.0],
+  [800, 20.0, 15.3],
+  [1000, 17.5, 13.5],
+  [1500, 14.0, 11.0],
+  [2000, 12.0, 9.3],
+  [3000, 9.5, 7.4],
+  [4000, 8.2, 6.3],
+  [5000, 7.2, 5.6],
+  [6000, 6.5, 5.0],
+  [8000, 5.5, 4.3],
+  [10000, 4.9, 3.8],
+  [15000, 3.9, 3.0],
+  [20000, 3.5, 2.6],
+  [25000, 3.0, 2.3],
+  [30000, 2.7, 2.1],
+  [40000, 2.3, 1.8],
+  [50000, 2.0, 1.6],
+  [75000, 1.6, 1.3],
+  [100000, 1.4, 1.1],
+];
+
+// Log-log interpolation between table rows (the table follows a power law);
+// clamped to the first / last row outside the table range.
+export const getAirChangesPer24h = (
+  internalVolumeM3: number,
+  roomTempC: number,
+): number => {
+  const col = roomTempC >= 0 ? 1 : 2;
+  const v = internalVolumeM3 * M3_TO_FT3;
+  if (v <= AIR_CHANGE_TABLE[0][0]) return AIR_CHANGE_TABLE[0][col];
+  const last = AIR_CHANGE_TABLE[AIR_CHANGE_TABLE.length - 1];
+  if (v >= last[0]) return last[col];
+  for (let i = 1; i < AIR_CHANGE_TABLE.length; i++) {
+    const hi = AIR_CHANGE_TABLE[i];
+    if (v <= hi[0]) {
+      const lo = AIR_CHANGE_TABLE[i - 1];
+      const f = Math.log(v / lo[0]) / Math.log(hi[0] / lo[0]);
+      return Math.exp(
+        Math.log(lo[col]) + f * (Math.log(hi[col]) - Math.log(lo[col])),
+      );
+    }
+  }
+  return last[col];
+};
+
+// PSYCHROMETRICS (standard atmospheric pressure 101.325 kPa)
+const ATM_KPA = 101.325;
+
+// Saturation vapour pressure (kPa): Magnus form over water (>= 0°C) and over ice (< 0°C)
+const saturationPressure = (tC: number): number =>
+  tC >= 0
+    ? 0.61094 * Math.exp((17.625 * tC) / (tC + 243.04))
+    : 0.61115 * Math.exp((22.452 * tC) / (tC + 272.55));
+
+// Humidity ratio (kg water / kg dry air)
+const humidityRatio = (tC: number, rhPercent: number): number => {
+  const pv = (Math.min(Math.max(rhPercent, 0), 100) / 100) * saturationPressure(tC);
+  return (0.621945 * pv) / (ATM_KPA - pv);
+};
+
+// Moist-air enthalpy (kJ per kg dry air)
+export const moistAirEnthalpy = (tC: number, rhPercent: number): number => {
+  const w = humidityRatio(tC, rhPercent);
+  return 1.006 * tC + w * (2501 + 1.86 * tC);
+};
+
+// Heat removed in cooling one litre of infiltrated outside air down to room
+// conditions (kJ/L). The litre is counted at room conditions because the air
+// changes are expressed as multiples of the room volume.
+export const calculateInfiltrationEnthalpy = (
+  ambientTempC: number,
+  ambientRH: number,
+  roomTempC: number,
+  roomRH: number,
+): number => {
+  const dh =
+    moistAirEnthalpy(ambientTempC, ambientRH) -
+    moistAirEnthalpy(roomTempC, roomRH);
+  const wRoom = humidityRatio(roomTempC, roomRH);
+  const dryAirDensity =
+    ATM_KPA / (0.287042 * (roomTempC + 273.15) * (1 + 1.607858 * wRoom)); // kg dry air / m³
+  return Math.max(0, (dh * dryAirDensity) / 1000);
+};
+
+export type AirChangeInputs = {
+  airChangeRate: number;
+  enthalpyDiff: number;
+  airChangesPer24h: number;
+  dailyAirVolumeM3: number;
+  isAuto: boolean;
+};
+
+// AIR CHANGE INPUTS
+// Auto (default): air changes per 24 h from the room volume, spread over the hours
+// of load, and the enthalpy difference from ambient / room temperature and RH.
+// Manual: the user's own air change rate (L/s) and enthalpy difference (kJ/L).
+export const resolveAirChange = (params: {
+  mode?: 'auto' | 'manual';
+  manualRate: number;
+  manualEnthalpy: number;
+  internalVolumeM3: number;
+  ambientTempC: number;
+  ambientRH: number;
+  roomTempC: number;
+  roomRH: number;
+  hoursOfLoad: number;
+}): AirChangeInputs => {
+  const hours = params.hoursOfLoad > 0 ? params.hoursOfLoad : 24;
+  if (params.mode === 'manual') {
+    return {
+      airChangeRate: params.manualRate,
+      enthalpyDiff: params.manualEnthalpy,
+      airChangesPer24h:
+        params.internalVolumeM3 > 0
+          ? (params.manualRate * 3600 * hours) / 1000 / params.internalVolumeM3
+          : 0,
+      dailyAirVolumeM3: (params.manualRate * 3600 * hours) / 1000,
+      isAuto: false,
+    };
+  }
+  const airChangesPer24h = getAirChangesPer24h(
+    params.internalVolumeM3,
+    params.roomTempC,
+  );
+  const dailyAirVolumeM3 = params.internalVolumeM3 * airChangesPer24h;
+  return {
+    airChangeRate: (dailyAirVolumeM3 * 1000) / (hours * 3600),
+    enthalpyDiff: calculateInfiltrationEnthalpy(
+      params.ambientTempC,
+      params.ambientRH,
+      params.roomTempC,
+      params.roomRH,
+    ),
+    airChangesPer24h,
+    dailyAirVolumeM3,
+    isAuto: true,
+  };
 };
 
 export const calculateHeatLoad = (
@@ -224,11 +394,23 @@ export const calculateHeatLoad = (
   const ceilingArea = length * width;
   const floorArea = length * width;
 
-  // Calculate internal volume (Excel formula: =G4-SUM(D8:D10)*(D51/1000)-((D53/1000)*D9))
-  // Simplified for now - will implement full formula later
-  const internalVolume = length * width * height;
+  // Internal (net) volume: outside dimensions minus panels and floor finish
+  const internalVolume = calculateInternalVolume(
+    length,
+    width,
+    height,
+    roomData.wallInsulationThickness,
+    roomData.ceilingInsulationThickness,
+    roomData.floorInsulationThickness,
+    roomData.floorFinishThickness ?? 100,
+  );
+
+  // Storage capacity: internal volume (ft³) x gross storage density (kg/ft³)
+  const storageDensity = productData.storageDensity ?? 8;
+  const maximumStorage = calculateMaximumStorage(internalVolume, storageDensity);
 
   // Calculate U-factors based on insulation thickness (Excel methodology)
+  // A thickness of 0 means "no insulation" (only air films + structure remain).
   const wallUFactor = calculateUFactor(
     roomData.wallInsulationThickness,
     roomData.insulationType,
@@ -237,9 +419,12 @@ export const calculateHeatLoad = (
     roomData.ceilingInsulationThickness,
     roomData.insulationType,
   );
-  const floorUFactor = calculateUFactor(
+  const floorUFactor = calculateFloorUFactor(
     roomData.floorInsulationThickness,
     roomData.insulationType,
+    length,
+    width,
+    roomData.wallInsulationThickness,
   );
 
   // TRANSMISSION LOADS (kJ/24Hr) - EXACT Excel formulas
@@ -354,22 +539,36 @@ export const calculateHeatLoad = (
   const respirationLoad =
     (respirationMassKg * productData.watts * 3.6 * 24) / 1000;
 
-  // AIR CHANGE LOAD (kJ/24Hr) - EXACT Excel formula
+  // AIR CHANGE LOAD (kJ/24Hr) - Excel formula
   // Excel: =C21*D21*3600*F21 = Air change rate * Enthalpy diff * 3600 * Hours
+  // In auto mode the rate comes from the room volume (standard air changes per 24 h)
+  // and the enthalpy difference from ambient / room temperature and RH.
+  const ambientRH = miscData.ambientRH ?? 55;
+  const airChange = resolveAirChange({
+    mode: miscData.airChangeMode ?? 'auto',
+    manualRate: miscData.airChangeRate,
+    manualEnthalpy: miscData.enthalpyDiff,
+    internalVolumeM3: internalVolume,
+    ambientTempC,
+    ambientRH,
+    roomTempC,
+    roomRH: insideRH,
+    hoursOfLoad: miscData.hoursOfLoad,
+  });
   const airChangeLoadBase =
-    miscData.airChangeRate *
-    miscData.enthalpyDiff *
+    airChange.airChangeRate *
+    airChange.enthalpyDiff *
     3600 *
     miscData.hoursOfLoad;
 
-  // NEW: Apply Ambient RH Correction to Air Change Load
-  // Formula: Q_adj,RH_ambient = Q_base × [1 + k × (RH_ambient - RH_ref) / 10]
-  // Where: RH_ref = 55% (midpoint of 50-60% base), k = 0.05 (5% per 10% RH change)
-  const ambientRH = miscData.ambientRH ?? 55;
+  // Ambient RH correction for a manually entered enthalpy difference:
+  // Q_adj = Q_base × [1 + 0.05 × (RH_ambient - 55) / 10].
+  // Not applied in auto mode, where RH is already inside the enthalpy calculation.
   const RH_ref_ambient = 55;
   const k_ambient = 0.05;
-  const rhCorrectionAmbient =
-    1 + k_ambient * ((ambientRH - RH_ref_ambient) / 10);
+  const rhCorrectionAmbient = airChange.isAuto
+    ? 1
+    : 1 + k_ambient * ((ambientRH - RH_ref_ambient) / 10);
   const airChangeLoad = airChangeLoadBase * rhCorrectionAmbient;
 
   console.log(
@@ -535,8 +734,6 @@ export const calculateHeatLoad = (
   const airQtyRequired =
     (refrigerationCapacityTR * 12000 * sensibleHeatRatio) / (5 * 1.08);
 
-  // Maximum Storage (Excel: D64 = H4*35.28*D63) - NOT USED in heat load calculations
-  // const maximumStorage = internalVolume * 35.28 * miscData.storageCapacity;
 
   return {
     // Transmission loads (kJ/24Hr)
@@ -600,7 +797,14 @@ export const calculateHeatLoad = (
 
     // Additional Excel matching properties
     internalVolume,
-    // maximumStorage - removed as it's not used in heat load calculations
+    storageDensity,
+    maximumStorage,
+
+    // Air change inputs actually used
+    airChangeRateUsed: airChange.airChangeRate,
+    enthalpyDiffUsed: airChange.enthalpyDiff,
+    airChangesPer24h: airChange.airChangesPer24h,
+    airChangeIsAuto: airChange.isAuto,
   };
 };
 
@@ -663,7 +867,19 @@ export const calculateFreezerHeatLoad = (
   const totalWallArea = wallArea1 + wallArea2;
   const ceilingArea = length * width;
   const floorArea = length * width;
-  const internalVolume = length * width * height;
+
+  // Internal (net) volume and storage capacity (same method as the cold room)
+  const internalVolume = calculateInternalVolume(
+    length,
+    width,
+    height,
+    roomData.wallInsulationThickness,
+    roomData.ceilingInsulationThickness,
+    roomData.floorInsulationThickness,
+    roomData.floorFinishThickness ?? 100,
+  );
+  const storageDensity = productData.storageDensity ?? 10;
+  const maximumStorage = calculateMaximumStorage(internalVolume, storageDensity);
 
   // Calculate U-factors based on insulation thickness (Excel methodology)
   const wallUFactor = calculateUFactor(
@@ -674,9 +890,12 @@ export const calculateFreezerHeatLoad = (
     roomData.ceilingInsulationThickness,
     roomData.insulationType,
   );
-  const floorUFactor = calculateUFactor(
+  const floorUFactor = calculateFloorUFactor(
     roomData.floorInsulationThickness,
     roomData.insulationType,
+    length,
+    width,
+    roomData.wallInsulationThickness,
   );
 
   // TRANSMISSION LOADS (kJ/24Hr) - EXACT Excel formulas
@@ -779,11 +998,24 @@ export const calculateFreezerHeatLoad = (
   const respirationLoad =
     (dailyLoadingKg * productData.watts * 3.6 * 24) / 1000;
 
-  // AIR CHANGE LOAD (kJ/24Hr) - EXACT Excel formula
+  // AIR CHANGE LOAD (kJ/24Hr) - Excel formula
   // Excel: =C23*D23*3600*F23
+  // Auto mode: air changes from the room volume (below-0°C column of the standard
+  // table) and the enthalpy difference from ambient / room temperature and RH.
+  const airChange = resolveAirChange({
+    mode: miscData.airChangeMode ?? 'auto',
+    manualRate: miscData.airChangeRate,
+    manualEnthalpy: miscData.enthalpyDiff,
+    internalVolumeM3: internalVolume,
+    ambientTempC,
+    ambientRH: miscData.ambientRH ?? 55,
+    roomTempC,
+    roomRH: miscData.insideRoomRH ?? 85,
+    hoursOfLoad: miscData.hoursOfLoad,
+  });
   const airChangeLoad =
-    miscData.airChangeRate *
-    miscData.enthalpyDiff *
+    airChange.airChangeRate *
+    airChange.enthalpyDiff *
     3600 *
     miscData.hoursOfLoad;
 
@@ -1033,6 +1265,14 @@ export const calculateFreezerHeatLoad = (
 
     // Additional properties
     internalVolume,
+    storageDensity,
+    maximumStorage,
+
+    // Air change inputs actually used
+    airChangeRateUsed: airChange.airChangeRate,
+    enthalpyDiffUsed: airChange.enthalpyDiff,
+    airChangesPer24h: airChange.airChangesPer24h,
+    airChangeIsAuto: airChange.isAuto,
   };
 };
 
@@ -1302,8 +1542,10 @@ export const calculateBlastHeatLoad = (
   // Excel G42: =G40/(G40+G41)
   const shr = sensibleHeatKJ24Hr / (sensibleHeatKJ24Hr + latentHeatKJ24Hr);
 
-  // Excel G43: =((G37*12000)*G42)/(5*1.08)
-  const airQtyRequiredCfm = (totalLoadKw * 12000 * shr) / (5 * 1.08);
+  // Excel G43: =((G37*12000)*G42)/(5*1.08). G37 is in kW, but 12000 BTU/h is the
+  // value of one TR, so the load must be in TR here (the sheet overstated the air
+  // quantity by a factor of 3.517).
+  const airQtyRequiredCfm = (totalLoadTR * 12000 * shr) / (5 * 1.08);
 
   // Individual TR calculations - Excel formulas: =G8/(3600*3.517*24)
   const trConversionFactor = 3600 * 3.517 * 24;

@@ -1,3 +1,5 @@
+import { freezerProducts } from './freezerProducts';
+
 export type ProductPreset = {
   name: string;
   cpAboveFreezing: number; // kJ/kg·K
@@ -590,3 +592,17 @@ export const PRODUCT_PRESET_MAP = PRODUCT_PRESETS.reduce<
   acc[p.name] = p;
   return acc;
 }, {});
+
+// Latent heat of fusion (kJ/kg) for a cold room product:
+//   1. the value from the freezer product table when a product of the same name exists
+//   2. otherwise Siebel's estimate from the water content implied by Cp above freezing:
+//        water fraction x = (Cp_above - 0.84) / 3.35,  L = 335 x
+export const estimateLatentHeat = (name: string | undefined, cpAboveFreezing: number): number => {
+  const key = (name || '').toLowerCase();
+  if (key && key !== 'custom') {
+    const match = freezerProducts.find((p) => p.name.toLowerCase() === key);
+    if (match) return match.latentHeatOfFusion;
+  }
+  const waterFraction = Math.min(Math.max((cpAboveFreezing - 0.84) / 3.35, 0), 1);
+  return Math.round(335 * waterFraction);
+};

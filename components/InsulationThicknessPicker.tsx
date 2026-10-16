@@ -13,17 +13,23 @@ interface InsulationThicknessPickerProps {
   value: number;
   onChange: (value: number) => void;
   label: string;
+  // Adds a "No insulation" (0 mm) choice, e.g. for floors of chillers on a slab
+  allowNone?: boolean;
 }
 
 const THICKNESS_OPTIONS = [40, 60, 80, 100, 120, 150, 160];
+
+const formatThickness = (thickness: number) =>
+  thickness === 0 ? 'No insulation' : `${thickness} mm`;
 
 /**
  * InsulationThicknessPicker Component
  * 
  * Allows user to select insulation thickness from predefined options
  */
-export default function InsulationThicknessPicker({ value, onChange, label }: InsulationThicknessPickerProps) {
+export default function InsulationThicknessPicker({ value, onChange, label, allowNone = false }: InsulationThicknessPickerProps) {
   const [modalVisible, setModalVisible] = useState(false);
+  const options = allowNone ? [0, ...THICKNESS_OPTIONS] : THICKNESS_OPTIONS;
 
   const handleSelect = (thickness: number) => {
     onChange(thickness);
@@ -42,7 +48,7 @@ export default function InsulationThicknessPicker({ value, onChange, label }: In
         styles.optionText,
         item === value && styles.selectedOptionText
       ]}>
-        {item} mm
+        {formatThickness(item)}
       </Text>
       {item === value && (
         <Ionicons name="checkmark" size={20} color="#2563eb" />
@@ -58,7 +64,7 @@ export default function InsulationThicknessPicker({ value, onChange, label }: In
         style={styles.selector}
         onPress={() => setModalVisible(true)}
       >
-        <Text style={styles.selectorText}>{value} mm</Text>
+        <Text style={styles.selectorText}>{formatThickness(value)}</Text>
         <Ionicons name="chevron-down" size={20} color="#6b7280" />
       </TouchableOpacity>
 
@@ -81,7 +87,7 @@ export default function InsulationThicknessPicker({ value, onChange, label }: In
             </View>
 
             <FlatList
-              data={THICKNESS_OPTIONS}
+              data={options}
               renderItem={renderItem}
               keyExtractor={(item) => item.toString()}
               style={styles.optionsList}

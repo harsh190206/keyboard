@@ -30,6 +30,7 @@ const defaultFreezerRoomData: RoomData = {
     wallHours: 8,          // Excel shows 8 hrs
     ceilingHours: 8,       // Excel shows 8 hrs  
     floorHours: 8,         // Excel shows 8 hrs
+    floorFinishThickness: 150, // Excel D56: 150 mm internal floor
 };
 
 const defaultFreezerProductData: FreezerProductData = {
@@ -45,13 +46,15 @@ const defaultFreezerProductData: FreezerProductData = {
     pullDownHours: 10,         // Excel shows 10 hrs for freezing process
     respirationMass: 3000,     // Will be adjusted by dailyLoadingPercent
     watts: 0,                  // Excel shows 0 W/tonne for frozen products
+    storageDensity: 10,        // Excel D69: 10 kg/ft³
     productName: 'Chicken',    // Excel shows Chicken as the product
     overridePreset: false,
     dailyLoadingPercent: 100,  // Default 100% - Percentage of total capacity loaded per day
 };
 
 const defaultFreezerMiscData: FreezerMiscellaneousData = {
-    // Air Change - Excel exact values
+    // Air Change - rate and enthalpy are calculated in 'auto' mode
+    airChangeMode: 'auto',
     airChangeRate: 4.2,        // Excel shows 4.2 L/S air change rate
     enthalpyDiff: 0.14,        // Excel shows 0.14 kJ/L enthalpy difference
     hoursOfLoad: 16,           // Excel shows 16 hrs of load

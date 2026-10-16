@@ -152,6 +152,10 @@ export default function FreezerResultsTab() {
               { label: 'Sensible Heat', value: (results.sensibleHeat || 0).toFixed(1), unit: 'kW' },
               { label: 'Latent Heat', value: (results.latentHeat || 0).toFixed(1), unit: 'kW' },
               { label: 'Air Qty Required', value: (results.airQtyRequired || 0).toFixed(0), unit: 'CFM' },
+            { label: 'Air Changes per 24 h', value: (results.airChangesPer24h ?? 0).toFixed(1), unit: results.airChangeIsAuto ? '(auto)' : '(manual)' },
+            { label: 'Air Change Rate', value: (results.airChangeRateUsed ?? 0).toFixed(2), unit: 'L/s' },
+            { label: 'Enthalpy Difference', value: (results.enthalpyDiffUsed ?? 0).toFixed(4), unit: 'kJ/L' },
+            { label: 'Maximum Storage', value: (results.maximumStorage ?? 0).toFixed(0), unit: 'kg' },
             ]
           }
         ]
@@ -403,6 +407,7 @@ export default function FreezerResultsTab() {
           <SectionCard title="Other Loads">
             <ResultCard title="Respiration Load" value={results.respirationLoad} unit="kW" />
             <ResultCard title="Air Change Load" value={results.airChangeLoad} unit="kW" />
+            <ResultCard title="Air Changes per 24 h" value={results.airChangesPer24h ?? 0} unit={results.airChangeIsAuto ? 'auto' : 'manual'} />
             <ResultCard title="Equipment Load" value={results.equipmentLoad} unit="kW" />
             <ResultCard title="Lighting Load" value={results.lightLoad} unit="kW" />
             <ResultCard title="Heater Load" value={results.doorHeaterLoad || 0} unit="kW" />
@@ -420,6 +425,7 @@ export default function FreezerResultsTab() {
             <ResultCard title="Sensible Heat" value={results.sensibleHeat} unit="kW" />
             <ResultCard title="Latent Heat" value={results.latentHeat} unit="kW" />
             <ResultCard title="Air Quantity Required" value={results.airQtyRequired} unit="CFM" />
+            <ResultCard title="Maximum Storage" value={results.maximumStorage ?? 0} unit="kg" />
           </SectionCard>
 
           <View style={styles.footer}>

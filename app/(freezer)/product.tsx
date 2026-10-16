@@ -195,7 +195,7 @@ export default function FreezerProductTab() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Process Parameters</Text>
+          <Text style={styles.sectionTitle}>Respiration Load</Text>
 
           <InputField
             label="Respiration Heat"

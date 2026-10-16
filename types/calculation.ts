@@ -22,6 +22,9 @@ export interface RoomData {
   wallHours: number; // F8 in Excel (24)
   ceilingHours: number; // F9 in Excel (24)
   floorHours: number; // F10 in Excel (24)
+
+  // Floor finish / screed above the floor insulation (Excel D53, default 100 mm)
+  floorFinishThickness?: number;
 }
 
 export interface ProductData {
@@ -45,6 +48,9 @@ export interface ProductData {
   // Respiration
   respirationMass: number;
   watts: number;
+
+  // Storage capacity: gross storage density per ft³ of internal volume (Excel D63)
+  storageDensity?: number; // kg/ft³
 
   // Preset selection
   productName?: string; // e.g., 'Banana', 'Custom'
@@ -102,6 +108,8 @@ export interface FreezerMiscellaneousData extends MiscellaneousData {
 
 export interface MiscellaneousData {
   // Air Change (Excel structure)
+  // 'auto' (default): rate and enthalpy are calculated from room volume and conditions
+  airChangeMode?: 'auto' | 'manual';
   airChangeRate: number; // C21 in Excel (3.4 L/S)
   enthalpyDiff: number; // D21 in Excel (0.10 kJ/L)
   hoursOfLoad: number; // F21 in Excel (20 hrs)
@@ -232,8 +240,15 @@ export interface CalculationResults {
   productTempDiff: number; // E14 in Excel (K)
 
   // Additional Excel matching properties
-  internalVolume: number; // D4 in Excel (m³)
-  // maximumStorage - removed as it's not used in heat load calculations
+  internalVolume: number; // H4 in Excel (m³, net of insulation and floor finish)
+  storageDensity?: number; // D63 in Excel (kg/ft³)
+  maximumStorage?: number; // D64 in Excel (kg)
+
+  // Air change inputs actually used (calculated in auto mode)
+  airChangeRateUsed?: number; // L/s
+  enthalpyDiffUsed?: number; // kJ/L
+  airChangesPer24h?: number;
+  airChangeIsAuto?: boolean;
 }
 
 // Freezer-specific calculation results

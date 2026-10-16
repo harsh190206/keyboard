@@ -30,6 +30,7 @@ const defaultRoomData: RoomData = {
     wallHours: 24,         // Excel F8: 24 hrs
     ceilingHours: 24,      // Excel F9: 24 hrs  
     floorHours: 24,        // Excel F10: 24 hrs
+    floorFinishThickness: 100, // Excel D53: 100 mm internal floor
 };
 
 const defaultProductData: ProductData = {
@@ -45,6 +46,10 @@ const defaultProductData: ProductData = {
     tempUnit: 'C',            // Default temperature unit
 
     cpAboveFreezing: 4.1,     // Excel shows 4.1 kJ/kg·K
+    cpBelowFreezing: 2.1,     // Custom preset
+    freezingPoint: -2,        // Custom preset
+    latentHeatOfFusion: 326,  // Siebel estimate for Cp 4.1 (water ≈ 98%)
+    storageDensity: 8,        // Excel D63: 8 kg/ft³
     pullDownHours: 8,         // Realistic pull-down time (8 hrs)
     respirationMass: 4000,    // Excel shows 4000 kg (will be adjusted by dailyLoadingPercent)
     watts: 50,                // Excel shows 50 W/Tonne
@@ -53,7 +58,8 @@ const defaultProductData: ProductData = {
 };
 
 const defaultMiscData: MiscellaneousData = {
-    // Air Change (Excel row 21)
+    // Air Change (Excel row 21) - rate and enthalpy are calculated in 'auto' mode
+    airChangeMode: 'auto',
     airChangeRate: 3.4,        // Excel C21: 3.4 L/S
     enthalpyDiff: 0.10,        // Excel D21: 0.10 kJ/L
     hoursOfLoad: 20,           // Excel F21: 20 hrs

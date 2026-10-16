@@ -150,6 +150,10 @@ export default function ColdRoomResultsTab() {
             { label: 'Latent Heat', value: ((results.latentHeat || 0) / (24 * 3600)).toFixed(1), unit: 'kW' },
             { label: 'Sensible Heat Ratio', value: (results.sensibleHeatRatio || 0).toFixed(3), unit: '' },
             { label: 'Air Qty Required', value: (results.airQtyRequired || 0).toFixed(0), unit: 'CFM' },
+            { label: 'Air Changes per 24 h', value: (results.airChangesPer24h ?? 0).toFixed(1), unit: results.airChangeIsAuto ? '(auto)' : '(manual)' },
+            { label: 'Air Change Rate', value: (results.airChangeRateUsed ?? 0).toFixed(2), unit: 'L/s' },
+            { label: 'Enthalpy Difference', value: (results.enthalpyDiffUsed ?? 0).toFixed(4), unit: 'kJ/L' },
+            { label: 'Maximum Storage', value: (results.maximumStorage ?? 0).toFixed(0), unit: 'kg' },
           ]
         }
       ]
@@ -366,6 +370,7 @@ export default function ColdRoomResultsTab() {
           {/* Other Loads */}
           <SectionCard title="Other Loads">
             <ResultCard title="Air Change Load" value={results.airChangeLoad / (24 * 3600)} unit="kW" />
+            <ResultCard title="Air Changes per 24 h" value={results.airChangesPer24h ?? 0} unit={results.airChangeIsAuto ? 'auto' : 'manual'} />
             <ResultCard title="Equipment Load" value={results.equipmentLoad / (24 * 3600)} unit="kW" />
             <ResultCard title="Lighting Load" value={results.lightLoad / (24 * 3600)} unit="kW" />
             <ResultCard title="Door Heater Load" value={results.doorHeaterLoad / (24 * 3600)} unit="kW" />
@@ -383,6 +388,7 @@ export default function ColdRoomResultsTab() {
             <ResultCard title="Latent Heat" value={results.latentHeat / (24 * 3600)} unit="kW" />
             <ResultCard title="Sensible Heat Ratio" value={results.sensibleHeatRatio} unit="" />
             <ResultCard title="Air Quantity Required" value={results.airQtyRequired} unit="CFM" />
+            <ResultCard title="Maximum Storage" value={results.maximumStorage ?? 0} unit="kg" />
           </SectionCard>
 
           {/* Capacity Adjustments */}

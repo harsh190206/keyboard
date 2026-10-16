@@ -11,12 +11,31 @@ import {
 import { router } from 'expo-router';
 import { InputField } from '@/components/InputField';
 import { ProductPicker } from '@/components/ProductPicker';
-import { PRODUCT_PRESET_MAP } from '@/data/products';
+import { PRODUCT_PRESET_MAP, estimateLatentHeat } from '@/data/products';
+import { calculateInternalVolume, calculateMaximumStorage, convertLength, convertMass } from '@/utils/calculations';
 import { useStorageContext } from '@/hooks/StorageProvider';
 import { BottomNavArrows } from '@/components/BottomNavArrows';
 
 export default function ProductTab() {
-  const { productData, saveProductData } = useStorageContext();
+  const { productData, saveProductData, roomData } = useStorageContext();
+
+  // Storage capacity (Excel D63/D64): internal volume x gross storage density
+  const internalVolume = calculateInternalVolume(
+    convertLength(roomData.length, roomData.lengthUnit, 'm'),
+    convertLength(roomData.width, roomData.lengthUnit, 'm'),
+    convertLength(roomData.height, roomData.lengthUnit, 'm'),
+    roomData.wallInsulationThickness,
+    roomData.ceilingInsulationThickness,
+    roomData.floorInsulationThickness,
+    roomData.floorFinishThickness ?? 100,
+  );
+  const storageDensity = productData.storageDensity ?? 8;
+  const maximumStorageKg = calculateMaximumStorage(internalVolume, storageDensity);
+  const totalCapacityKg = convertMass(productData.massBeforeFreezing, productData.massUnit, 'kg');
+  const exceedsStorage = maximumStorageKg > 0 && totalCapacityKg > maximumStorageKg;
+  const latentHeat =
+    productData.latentHeatOfFusion ??
+    estimateLatentHeat(productData.productName, productData.cpAboveFreezing);
 
   const updateProductData = (field: string, value: string | number) => {
     const newData = { ...productData, [field]: value };
@@ -82,6 +101,7 @@ export default function ProductTab() {
       cpAboveFreezing: preset.cpAboveFreezing,
       cpBelowFreezing: preset.cpBelowFreezing,
       freezingPoint: preset.freezingPoint,
+      latentHeatOfFusion: estimateLatentHeat(name, preset.cpAboveFreezing),
       watts: preset.respirationWattsPerTonne,
       // If user changes afterwards, they can still edit fields
       overridePreset: false,
@@ -170,6 +190,36 @@ export default function ProductTab() {
         </View>
 
         <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Storage Capacity</Text>
+
+          <InputField
+            label="Storage Density (gross)"
+            value={storageDensity.toString()}
+            onChangeText={(value) => handleNumericChange('storageDensity', value)}
+            unit="kg/ft³"
+            keyboardType="decimal-pad"
+          />
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Internal Volume</Text>
+            <Text style={styles.infoValue}>{internalVolume.toFixed(2)} m³ ({(internalVolume * 35.3147).toFixed(0)} ft³)</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Maximum Storage</Text>
+            <Text style={styles.infoValue}>{Math.round(maximumStorageKg).toLocaleString()} kg</Text>
+          </View>
+          <Text style={styles.helperText}>
+            Maximum Storage = Internal Volume (ft³) × Storage Density. Internal volume is the room size less the
+            insulation on all sides and the floor finish.
+          </Text>
+          {exceedsStorage && (
+            <Text style={styles.warningText}>
+              Total Product Capacity is more than the maximum storage of this room.
+            </Text>
+          )}
+        </View>
+
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Product Thermal Properties</Text>
 
           <InputField
@@ -201,17 +251,28 @@ export default function ProductTab() {
               allowNegative={true}
             />
           )}
+
+          <InputField
+            label="Latent Heat of Fusion"
+            value={latentHeat.toString()}
+            onChangeText={(value) => handleNumericChange('latentHeatOfFusion', value)}
+            unit="kJ/kg"
+          />
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Process Parameters</Text>
+          <Text style={styles.sectionTitle}>Respiration Load</Text>
 
           <InputField
-            label="Watts per Tonne"
+            label="Respiration Heat"
             value={productData.watts.toString()}
             onChangeText={(value) => handleNumericChange('watts', value)}
-            unit="W/T"
+            unit="W/tonne"
           />
+          <Text style={styles.helperText}>
+            Heat given off by fresh fruit and vegetables while stored. Filled from the selected product; 0 for
+            non-living products.
+          </Text>
         </View>
 
         {/* Info section removed for cleaner UI */}
@@ -249,6 +310,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#64748b',
     textAlign: 'center',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+  },
+  infoLabel: {
+    fontSize: 14,
+    color: '#475569',
+  },
+  infoValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 6,
+  },
+  warningText: {
+    fontSize: 13,
+    color: '#b45309',
+    marginTop: 8,
   },
   section: {
     backgroundColor: '#ffffff',

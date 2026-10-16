@@ -13,9 +13,21 @@ import { InputField } from '@/components/InputField';
 import { useFreezerStorageContext } from '@/hooks/FreezerStorageProvider';
 import { BottomNavArrows } from '@/components/BottomNavArrows';
 import DoorOpeningFrequencyPicker from '@/components/DoorOpeningFrequencyPicker';
+import AirChangeSection from '@/components/AirChangeSection';
+import { calculateInternalVolume, convertLength, convertTemp } from '@/utils/calculations';
 
 export default function FreezerMiscellaneousTab() {
-  const { miscData, saveMiscData } = useFreezerStorageContext();
+  const { miscData, saveMiscData, roomData } = useFreezerStorageContext();
+
+  const internalVolume = calculateInternalVolume(
+    convertLength(roomData.length, roomData.lengthUnit, 'm'),
+    convertLength(roomData.width, roomData.lengthUnit, 'm'),
+    convertLength(roomData.height, roomData.lengthUnit, 'm'),
+    roomData.wallInsulationThickness,
+    roomData.ceilingInsulationThickness,
+    roomData.floorInsulationThickness,
+    roomData.floorFinishThickness ?? 100,
+  );
 
   const updateMiscData = (field: string, value: string | number) => {
     const newData = { ...miscData, [field]: value };
@@ -80,25 +92,17 @@ export default function FreezerMiscellaneousTab() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Air Change Load</Text>
 
-          <InputField
-            label="Air Change Rate"
-            value={miscData.airChangeRate.toString()}
-            onChangeText={(value) => handleValueChange('airChangeRate', value)}
-            unit="L/S"
-          />
-
-          <InputField
-            label="Enthalpy Difference"
-            value={miscData.enthalpyDiff.toString()}
-            onChangeText={(value) => handleValueChange('enthalpyDiff', value)}
-            unit="kJ/L"
-          />
-
-          <InputField
-            label="Hours of Load"
-            value={miscData.hoursOfLoad.toString()}
-            onChangeText={(value) => handleValueChange('hoursOfLoad', value)}
-            unit="hrs"
+          <AirChangeSection
+            mode={miscData.airChangeMode ?? 'auto'}
+            airChangeRate={miscData.airChangeRate}
+            enthalpyDiff={miscData.enthalpyDiff}
+            hoursOfLoad={miscData.hoursOfLoad}
+            internalVolume={internalVolume}
+            ambientTempC={convertTemp(miscData.ambientTemp, miscData.tempUnit, 'C')}
+            ambientRH={miscData.ambientRH ?? 55}
+            roomTempC={convertTemp(miscData.roomTemp, miscData.tempUnit, 'C')}
+            roomRH={miscData.insideRoomRH ?? 85}
+            onChange={(patch) => saveMiscData({ ...miscData, ...patch })}
           />
         </View>
 

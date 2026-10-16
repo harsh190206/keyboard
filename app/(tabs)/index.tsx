@@ -262,6 +262,7 @@ export default function RoomDetailsTab() {
             label="Floor Insulation Thickness"
             value={roomData.floorInsulationThickness}
             onChange={(value) => updateRoomData('floorInsulationThickness', value)}
+            allowNone
           />
         </View>
 
