@@ -157,11 +157,11 @@ export default function BlastMiscellaneousTab() {
 
                         <InputField
                             label="Light Load"
-                            value={miscData.lightLoad.toString()}
-                            onChangeText={(value) => handleValueChange('lightLoad', value)}
+                            value={(Math.round(miscData.lightLoad * 1000 * 100) / 100).toString()}
+                            onChangeText={(value) => handleValueChange('lightLoad', String((parseFloat(value) || 0) / 1000))}
                             keyboardType="decimal-pad"
-                            placeholder="0.1"
-                            unit="kW"
+                            placeholder="100"
+                            unit="W"
                         />
 
                         <InputField

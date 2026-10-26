@@ -281,10 +281,24 @@ export const calculateInfiltrationEnthalpy = (
   return Math.max(0, (dh * dryAirDensity) / 1000);
 };
 
+// DOOR OPENING FREQUENCY
+// Multiplies the air changes per 24 h (door openings are what drive infiltration).
+// The standard air change table is for average use, i.e. "Low".
+export type DoorOpeningFrequency = 'low' | 'medium' | 'high';
+export const DOOR_AIR_CHANGE_FACTORS: Record<DoorOpeningFrequency, number> = {
+  low: 1.0,
+  medium: 1.5,
+  high: 2.0,
+};
+export const getDoorAirChangeFactor = (frequency?: string): number =>
+  DOOR_AIR_CHANGE_FACTORS[(frequency as DoorOpeningFrequency) || 'low'] ?? 1.0;
+
 export type AirChangeInputs = {
-  airChangeRate: number;
+  airChangeRate: number; // L/s, door factor included
   enthalpyDiff: number;
-  airChangesPer24h: number;
+  airChangesPer24h: number; // door factor included
+  baseAirChangesPer24h: number; // before the door factor
+  doorFactor: number;
   dailyAirVolumeM3: number;
   isAuto: boolean;
 };
@@ -293,6 +307,7 @@ export type AirChangeInputs = {
 // Auto (default): air changes per 24 h from the room volume, spread over the hours
 // of load, and the enthalpy difference from ambient / room temperature and RH.
 // Manual: the user's own air change rate (L/s) and enthalpy difference (kJ/L).
+// In both modes the air changes are multiplied by the door opening frequency factor.
 export const resolveAirChange = (params: {
   mode?: 'auto' | 'manual';
   manualRate: number;
@@ -303,36 +318,37 @@ export const resolveAirChange = (params: {
   roomTempC: number;
   roomRH: number;
   hoursOfLoad: number;
+  doorOpeningFrequency?: string;
 }): AirChangeInputs => {
   const hours = params.hoursOfLoad > 0 ? params.hoursOfLoad : 24;
-  if (params.mode === 'manual') {
-    return {
-      airChangeRate: params.manualRate,
-      enthalpyDiff: params.manualEnthalpy,
-      airChangesPer24h:
-        params.internalVolumeM3 > 0
-          ? (params.manualRate * 3600 * hours) / 1000 / params.internalVolumeM3
-          : 0,
-      dailyAirVolumeM3: (params.manualRate * 3600 * hours) / 1000,
-      isAuto: false,
-    };
-  }
-  const airChangesPer24h = getAirChangesPer24h(
-    params.internalVolumeM3,
-    params.roomTempC,
-  );
-  const dailyAirVolumeM3 = params.internalVolumeM3 * airChangesPer24h;
+  const doorFactor = getDoorAirChangeFactor(params.doorOpeningFrequency);
+  const isAuto = params.mode !== 'manual';
+
+  const baseAirChangesPer24h = isAuto
+    ? getAirChangesPer24h(params.internalVolumeM3, params.roomTempC)
+    : params.internalVolumeM3 > 0
+      ? (params.manualRate * 3600 * hours) / 1000 / params.internalVolumeM3
+      : 0;
+  const baseRate = isAuto
+    ? (params.internalVolumeM3 * baseAirChangesPer24h * 1000) / (hours * 3600)
+    : params.manualRate;
+  const airChangeRate = baseRate * doorFactor;
+
   return {
-    airChangeRate: (dailyAirVolumeM3 * 1000) / (hours * 3600),
-    enthalpyDiff: calculateInfiltrationEnthalpy(
-      params.ambientTempC,
-      params.ambientRH,
-      params.roomTempC,
-      params.roomRH,
-    ),
-    airChangesPer24h,
-    dailyAirVolumeM3,
-    isAuto: true,
+    airChangeRate,
+    enthalpyDiff: isAuto
+      ? calculateInfiltrationEnthalpy(
+          params.ambientTempC,
+          params.ambientRH,
+          params.roomTempC,
+          params.roomRH,
+        )
+      : params.manualEnthalpy,
+    airChangesPer24h: baseAirChangesPer24h * doorFactor,
+    baseAirChangesPer24h,
+    doorFactor,
+    dailyAirVolumeM3: (airChangeRate * 3600 * hours) / 1000,
+    isAuto,
   };
 };
 
@@ -354,7 +370,8 @@ export const calculateHeatLoad = (
   );
   const dailyLoadingPercent = productData.dailyLoadingPercent ?? 100;
   const productMass = (totalCapacityKg * dailyLoadingPercent) / 100;
-  const respirationMassKg = (totalCapacityKg * dailyLoadingPercent) / 100;
+  // Respiration heat is produced by everything in store, not only by the day's intake
+  const respirationMassKg = totalCapacityKg;
 
   console.log(
     `[Daily Loading] Total Capacity: ${totalCapacityKg} kg, Daily Loading: ${dailyLoadingPercent}%, Actual Mass: ${productMass.toFixed(
@@ -534,8 +551,9 @@ export const calculateHeatLoad = (
     )}, Adjusted: ${productLoad.toFixed(2)} kJ/24hr`,
   );
 
-  // RESPIRATION LOAD (kJ/24Hr) - EXACT Excel formula
-  // Excel: =(C17*D17*3.6*24/1000) = (Mass * Watts/Tonne * 3.6 * 24) / 1000
+  // RESPIRATION LOAD (kJ/24Hr)
+  // Total stored mass (kg) x W/tonne x 3.6 x 24 / 1000 (fruit and vegetables only;
+  // non-living products carry 0 W/tonne)
   const respirationLoad =
     (respirationMassKg * productData.watts * 3.6 * 24) / 1000;
 
@@ -554,6 +572,7 @@ export const calculateHeatLoad = (
     roomTempC,
     roomRH: insideRH,
     hoursOfLoad: miscData.hoursOfLoad,
+    doorOpeningFrequency: miscData.doorOpeningFrequency,
   });
   const airChangeLoadBase =
     airChange.airChangeRate *
@@ -644,7 +663,7 @@ export const calculateHeatLoad = (
   // Formula: Q_adjusted = Q_total × (24 / Compressor running hours)
   // If compressor runs fewer hours, capacity must be higher to meet same daily load
   const compressorHours = miscData.compressorRunningHours ?? 18;
-  const hoursAdjustmentFactor = 24 / compressorHours;
+  const hoursAdjustmentFactor = 24 / (compressorHours > 0 ? compressorHours : 24);
   const totalLoadKw = totalLoadKwBase * hoursAdjustmentFactor;
 
   console.log(
@@ -663,19 +682,11 @@ export const calculateHeatLoad = (
   const capacityIncludingSafety =
     (refrigerationCapacityTR * (100 + safetyFactorPercent)) / 100;
 
-  // NEW: Apply door opening frequency adjustment AFTER safety factor
-  // Low: 0% (1.0x), Medium: +5% (1.05x), High: +10% (1.10x)
+  // Door opening frequency is applied to the air changes per 24 h (air change load),
+  // not to the final capacity.
   const doorFrequency = miscData.doorOpeningFrequency || 'low';
-  const doorFrequencyMultiplier =
-    doorFrequency === 'high' ? 1.1 : doorFrequency === 'medium' ? 1.05 : 1.0;
-  const finalCapacity = capacityIncludingSafety * doorFrequencyMultiplier;
-
-  console.log('🚪 Door frequency adjustment:', {
-    doorFrequency,
-    multiplier: doorFrequencyMultiplier,
-    capacityBeforeDoor: capacityIncludingSafety.toFixed(3),
-    finalCapacity: finalCapacity.toFixed(3),
-  });
+  const doorFrequencyMultiplier = airChange.doorFactor;
+  const finalCapacity = capacityIncludingSafety;
 
   // Individual TR calculations (Excel: =G8/(3600*3.517*24))
   // The same compressor-running-hours factor that is applied to the total must be
@@ -805,6 +816,9 @@ export const calculateHeatLoad = (
     enthalpyDiffUsed: airChange.enthalpyDiff,
     airChangesPer24h: airChange.airChangesPer24h,
     airChangeIsAuto: airChange.isAuto,
+    baseAirChangesPer24h: airChange.baseAirChangesPer24h,
+    compressorRunningHours: compressorHours,
+    hoursAdjustmentFactor,
   };
 };
 
@@ -828,7 +842,8 @@ export const calculateFreezerHeatLoad = (
   const dailyLoadingPercent = productData.dailyLoadingPercent ?? 100;
   const productMass = (totalCapacityKg * dailyLoadingPercent) / 100;
   const dailyLoadingKg = productMass; // For freezer, daily loading = actual mass being processed
-  const respirationMassKg = (totalCapacityKg * dailyLoadingPercent) / 100;
+  // Respiration heat is produced by everything in store, not only by the day's intake
+  const respirationMassKg = totalCapacityKg;
 
   console.log(
     `[Freezer - Daily Loading] Total Capacity: ${totalCapacityKg} kg, Daily Loading: ${dailyLoadingPercent}%, Actual Mass: ${productMass.toFixed(
@@ -993,10 +1008,10 @@ export const calculateFreezerHeatLoad = (
     `[Freezer - Product Load Master Eq] Above=${aboveFreezingTerm.toFixed(2)}, Latent=${latentTerm.toFixed(2)}, Below=${belowFreezingTerm.toFixed(2)} → Q=${productLoadKW.toFixed(4)} kW`,
   );
 
-  // RESPIRATION LOAD (kJ/24Hr) - EXACT Excel formula
-  // Excel: =(C19*D19*3.6*24/1000) where C19=D51 (daily loading)
+  // RESPIRATION LOAD (kJ/24Hr)
+  // Total stored mass (kg) x W/tonne x 3.6 x 24 / 1000 (0 for frozen products)
   const respirationLoad =
-    (dailyLoadingKg * productData.watts * 3.6 * 24) / 1000;
+    (respirationMassKg * productData.watts * 3.6 * 24) / 1000;
 
   // AIR CHANGE LOAD (kJ/24Hr) - Excel formula
   // Excel: =C23*D23*3600*F23
@@ -1012,6 +1027,7 @@ export const calculateFreezerHeatLoad = (
     roomTempC,
     roomRH: miscData.insideRoomRH ?? 85,
     hoursOfLoad: miscData.hoursOfLoad,
+    doorOpeningFrequency: miscData.doorOpeningFrequency,
   });
   const airChangeLoad =
     airChange.airChangeRate *
@@ -1123,8 +1139,11 @@ export const calculateFreezerHeatLoad = (
     airChangeLoad +
     totalMiscLoad;
 
-  // Convert to kW (Excel: G41 = G40/(24*3600))
-  const totalLoadKw = totalLoadKJ / (24 * 3600);
+  // Convert to kW (Excel: G41 = G40/(24*3600)), then size the plant for the hours the
+  // compressor actually runs: Q = Q_24h x (24 / compressor running hours)
+  const compressorHours = miscData.compressorRunningHours ?? 18;
+  const hoursAdjustmentFactor = 24 / (compressorHours > 0 ? compressorHours : 24);
+  const totalLoadKw = (totalLoadKJ / (24 * 3600)) * hoursAdjustmentFactor;
 
   // Refrigeration capacity in TR (Excel: G42 = G41/3.517)
   const refrigerationCapacityTR = totalLoadKw / 3.517;
@@ -1134,22 +1153,14 @@ export const calculateFreezerHeatLoad = (
   const capacityTR =
     (refrigerationCapacityTR * (100 + safetyFactorPercent)) / 100;
 
-  // NEW: Apply door opening frequency adjustment AFTER safety factor
-  // Low: 0% (1.0x), Medium: +5% (1.05x), High: +10% (1.10x)
+  // Door opening frequency is applied to the air changes per 24 h (air change load)
   const doorFrequency = miscData.doorOpeningFrequency || 'low';
-  const doorFrequencyMultiplier =
-    doorFrequency === 'high' ? 1.1 : doorFrequency === 'medium' ? 1.05 : 1.0;
-  const finalCapacity = capacityTR * doorFrequencyMultiplier;
-
-  console.log('🚪 [Freezer] Door frequency adjustment:', {
-    doorFrequency,
-    multiplier: doorFrequencyMultiplier,
-    capacityBeforeDoor: capacityTR.toFixed(3),
-    finalCapacity: finalCapacity.toFixed(3),
-  });
+  const doorFrequencyMultiplier = airChange.doorFactor;
+  const finalCapacity = capacityTR;
 
   // Individual TR calculations (Excel: =G8/(3600*3.517*24))
-  const trConversionFactor = 3600 * 3.517 * 24;
+  // Same running-hours factor as the total so the TR breakdown adds up
+  const trConversionFactor = (3600 * 3.517 * 24) / hoursAdjustmentFactor;
   const wallLoadTR = wallLoad / trConversionFactor;
   const ceilingLoadTR = ceilingLoad / trConversionFactor;
   const floorLoadTR = floorLoad / trConversionFactor;
@@ -1209,7 +1220,9 @@ export const calculateFreezerHeatLoad = (
   // Temperature differences for display
   const productTempDiff = productIncomingC - productOutgoingC;
 
-  const kWFactor = 24 * 3600; // Divisor to convert kJ/24hr to kW
+  // Divisor to convert kJ/24hr to kW on the plant sizing basis (compressor running
+  // hours), so the individual loads add up to totalLoadKw
+  const kWFactor = (24 * 3600) / hoursAdjustmentFactor;
 
   return {
     wallLoad: wallLoad / kWFactor, // Convert kJ/24hr to kW
@@ -1226,8 +1239,8 @@ export const calculateFreezerHeatLoad = (
     equipmentLoad: equipmentLoad / kWFactor,
     occupancyLoad: occupancyLoad / kWFactor,
     lightLoad: lightLoad / kWFactor,
-    doorHeaterLoad:
-      (doorHeatersLoad + trayHeatersLoad + drainHeatersLoad) / kWFactor, // Combined heater loads
+    // All heaters (peripheral + door + tray + drain) so the listed loads add up to the total
+    doorHeaterLoad: heaterLoad / kWFactor,
     compressorLoad: compressorLoad / kWFactor,
     totalMiscLoad: totalMiscLoad / kWFactor,
     totalLoadKJ,
@@ -1273,6 +1286,9 @@ export const calculateFreezerHeatLoad = (
     enthalpyDiffUsed: airChange.enthalpyDiff,
     airChangesPer24h: airChange.airChangesPer24h,
     airChangeIsAuto: airChange.isAuto,
+    baseAirChangesPer24h: airChange.baseAirChangesPer24h,
+    compressorRunningHours: compressorHours,
+    hoursAdjustmentFactor,
   };
 };
 
@@ -1410,8 +1426,11 @@ export const calculateBlastHeatLoad = (
   // AIR CHANGE LOAD - Excel formula G20
   // Excel: =C20*D20*3600*F20
   // C20=4.2, D20=0.14, F20=2, Result: =4.2*0.14*3600*2 = 4233.6 kJ
+  // Door opening frequency multiplies the air changes (Low 1.0, Medium 1.5, High 2.0)
+  const doorAirChangeFactor = getDoorAirChangeFactor(miscData.doorOpeningFrequency);
   const airChangeLoad =
     miscData.airChangeRate *
+    doorAirChangeFactor *
     miscData.enthalpyDiff *
     3600 *
     miscData.hoursOfLoad;
@@ -1505,19 +1524,10 @@ export const calculateBlastHeatLoad = (
   const refrigerationCapacity =
     (totalLoadTR * (100 + safetyFactorPercent)) / 100;
 
-  // NEW: Apply door opening frequency adjustment AFTER safety factor
-  // Low: 0% (1.0x), Medium: +5% (1.05x), High: +10% (1.10x)
+  // Door opening frequency is applied to the air change load above
   const doorFrequency = miscData.doorOpeningFrequency || 'low';
-  const doorFrequencyMultiplier =
-    doorFrequency === 'high' ? 1.1 : doorFrequency === 'medium' ? 1.05 : 1.0;
-  const finalCapacity = refrigerationCapacity * doorFrequencyMultiplier;
-
-  console.log('🚪 [Blast] Door frequency adjustment:', {
-    doorFrequency,
-    multiplier: doorFrequencyMultiplier,
-    capacityBeforeDoor: refrigerationCapacity.toFixed(3),
-    finalCapacity: finalCapacity.toFixed(3),
-  });
+  const doorFrequencyMultiplier = doorAirChangeFactor;
+  const finalCapacity = refrigerationCapacity;
 
   // Sensible / latent split. Everything that is not phase change or moisture driven
   // is sensible, including the miscellaneous equipment, lighting and heater loads

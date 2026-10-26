@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/AuthProvider';
 import { useGlobalUpdate } from '@/hooks/useGlobalUpdate';
 import { calculateHeatLoad } from '@/utils/calculations';
 import { generateAndSharePDF, PDFData } from '@/utils/pdfGenerator';
+import { formatResultValue } from '@/utils/formatResult';
 import { saveCalculationToFirestore, getCalculationTypeFromTitle } from '@/utils/calculationStorage';
 
 export default function ColdRoomResultsTab() {
@@ -31,9 +32,12 @@ export default function ColdRoomResultsTab() {
 
   const results = calculateHeatLoad(roomData, productData, miscData);
   const baseLoadKw = results.totalLoadKw || 0;
+  // Loads are kJ/24h; show them in kW on the plant sizing basis (compressor running
+  // hours) so that they add up to the total load.
+  const kwDivisor = (24 * 3600) / (results.hoursAdjustmentFactor ?? 1);
   const safetyFactorPercent = results.safetyFactorPercent ?? miscData.capacityIncludingSafety ?? 20;
   
-  // Use finalCapacity from results which includes door frequency adjustment
+  // Total load = sum of all loads + safety allowance (door frequency acts on air changes)
   const finalCapacityTR = results.finalCapacity || 0;
   const finalCapacityKw = finalCapacityTR * 3.517;
   const finalCapacityBtuHr = finalCapacityKw * 3412;
@@ -62,7 +66,7 @@ export default function ColdRoomResultsTab() {
         userName: getUserDisplayName(), // Use helper function with fallback
         projectName: roomData.projectName,
         finalResults: [
-        { label: 'Total Load', value: finalCapacityKw.toFixed(1), unit: 'kW' },
+        { label: 'Total Load', value: finalCapacityKw.toFixed(2), unit: 'kW' },
         { label: 'Load', value: finalCapacityBtuHr.toFixed(0), unit: 'BTU/hr' },
         { label: 'Safety Factor', value: safetyFactorPercent.toFixed(1), unit: '%' },
       ],
@@ -116,38 +120,47 @@ export default function ColdRoomResultsTab() {
       ],
       sections: [
         {
+          title: 'Load Summary',
+          items: [
+            { label: 'Sum of All Loads', value: baseLoadKw.toFixed(2), unit: 'kW' },
+            { label: `Safety Allowance (${safetyFactorPercent}%)`, value: (baseLoadKw * safetyFactorPercent / 100).toFixed(2), unit: 'kW' },
+            { label: 'Total Load', value: finalCapacityKw.toFixed(2), unit: 'kW' },
+            { label: 'Load Basis', value: `${results.compressorRunningHours ?? 18} h/day compressor running`, unit: '' },
+          ]
+        },
+        {
           title: 'Transmission Loads',
           items: [
-            { label: 'Wall Load', value: ((results.wallLoad || 0) / (24 * 3600)).toFixed(1), unit: 'kW' },
-            { label: 'Ceiling Load', value: ((results.ceilingLoad || 0) / (24 * 3600)).toFixed(1), unit: 'kW' },
-            { label: 'Floor Load', value: ((results.floorLoad || 0) / (24 * 3600)).toFixed(1), unit: 'kW' },
-            { label: 'Total Transmission Load', value: ((results.totalTransmissionLoad || 0) / (24 * 3600)).toFixed(1), unit: 'kW' },
+            { label: 'Wall Load', value: ((results.wallLoad || 0) / kwDivisor).toFixed(2), unit: 'kW' },
+            { label: 'Ceiling Load', value: ((results.ceilingLoad || 0) / kwDivisor).toFixed(2), unit: 'kW' },
+            { label: 'Floor Load', value: ((results.floorLoad || 0) / kwDivisor).toFixed(2), unit: 'kW' },
+            { label: 'Total Transmission Load', value: ((results.totalTransmissionLoad || 0) / kwDivisor).toFixed(2), unit: 'kW' },
           ]
         },
         {
           title: 'Product Loads',
           items: [
-            { label: 'Product Load', value: ((results.productLoad || 0) / (24 * 3600)).toFixed(1), unit: 'kW' },
-            { label: 'Respiration Load', value: ((results.respirationLoad || 0) / (24 * 3600)).toFixed(1), unit: 'kW' },
-            { label: 'Total Product Load', value: (((results.productLoad || 0) + (results.respirationLoad || 0)) / (24 * 3600)).toFixed(1), unit: 'kW' },
+            { label: 'Product Load', value: ((results.productLoad || 0) / kwDivisor).toFixed(2), unit: 'kW' },
+            { label: 'Respiration Load', value: ((results.respirationLoad || 0) / kwDivisor).toFixed(2), unit: 'kW' },
+            { label: 'Total Product Load', value: (((results.productLoad || 0) + (results.respirationLoad || 0)) / kwDivisor).toFixed(2), unit: 'kW' },
           ]
         },
         {
           title: 'Other Loads',
           items: [
-            { label: 'Air Change Load', value: ((results.airChangeLoad || 0) / (24 * 3600)).toFixed(1), unit: 'kW' },
-            { label: 'Equipment Load', value: ((results.equipmentLoad || 0) / (24 * 3600)).toFixed(1), unit: 'kW' },
-            { label: 'Lighting Load', value: ((results.lightLoad || 0) / (24 * 3600)).toFixed(1), unit: 'kW' },
-            { label: 'Door Heater Load', value: ((results.doorHeaterLoad || 0) / (24 * 3600)).toFixed(1), unit: 'kW' },
-            { label: 'Occupancy Load', value: ((results.occupancyLoad || 0) / (24 * 3600)).toFixed(1), unit: 'kW' },
-            { label: 'Total Miscellaneous Load', value: ((results.totalMiscLoad || 0) / (24 * 3600)).toFixed(1), unit: 'kW' },
+            { label: 'Air Change Load', value: ((results.airChangeLoad || 0) / kwDivisor).toFixed(2), unit: 'kW' },
+            { label: 'Equipment Load', value: ((results.equipmentLoad || 0) / kwDivisor).toFixed(2), unit: 'kW' },
+            { label: 'Lighting Load', value: ((results.lightLoad || 0) / kwDivisor).toFixed(2), unit: 'kW' },
+            { label: 'Door Heater Load', value: ((results.doorHeaterLoad || 0) / kwDivisor).toFixed(2), unit: 'kW' },
+            { label: 'Occupancy Load', value: ((results.occupancyLoad || 0) / kwDivisor).toFixed(2), unit: 'kW' },
+            { label: 'Total Miscellaneous Load', value: ((results.totalMiscLoad || 0) / kwDivisor).toFixed(2), unit: 'kW' },
           ]
         },
         {
           title: 'Heat Distribution',
           items: [
-            { label: 'Sensible Heat', value: ((results.sensibleHeat || 0) / (24 * 3600)).toFixed(1), unit: 'kW' },
-            { label: 'Latent Heat', value: ((results.latentHeat || 0) / (24 * 3600)).toFixed(1), unit: 'kW' },
+            { label: 'Sensible Heat', value: ((results.sensibleHeat || 0) / kwDivisor).toFixed(2), unit: 'kW' },
+            { label: 'Latent Heat', value: ((results.latentHeat || 0) / kwDivisor).toFixed(2), unit: 'kW' },
             { label: 'Sensible Heat Ratio', value: (results.sensibleHeatRatio || 0).toFixed(3), unit: '' },
             { label: 'Air Qty Required', value: (results.airQtyRequired || 0).toFixed(0), unit: 'CFM' },
             { label: 'Air Changes per 24 h', value: (results.airChangesPer24h ?? 0).toFixed(1), unit: results.airChangeIsAuto ? '(auto)' : '(manual)' },
@@ -249,7 +262,7 @@ export default function ColdRoomResultsTab() {
     <View style={[styles.resultCard, isHighlighted && styles.highlightedCard]}>
       <Text style={[styles.resultLabel, isHighlighted && styles.highlightedLabel]}>{title}</Text>
       <Text style={[styles.resultValue, isHighlighted && styles.highlightedValue]}>
-        {value !== undefined ? (typeof value === 'number' ? value.toFixed(1) : value) : '0.0'} <Text style={styles.resultUnit}>{unit}</Text>
+        {value !== undefined ? (typeof value === 'number' ? formatResultValue(value) : value) : '0.00'} <Text style={styles.resultUnit}>{unit}</Text>
       </Text>
     </View>
   );
@@ -348,44 +361,52 @@ export default function ColdRoomResultsTab() {
             />
           </SectionCard>
 
+          {/* Load Summary: the individual loads below add up to this */}
+          <SectionCard title="Load Summary">
+            <ResultCard title="Sum of All Loads" value={baseLoadKw} unit="kW" />
+            <ResultCard title={`Safety Allowance (${safetyFactorPercent}%)`} value={baseLoadKw * safetyFactorPercent / 100} unit="kW" />
+            <ResultCard title="Total Load" value={finalCapacityKw} unit="kW" isHighlighted={true} />
+            <ResultCard title="Load Basis" value={`${results.compressorRunningHours ?? 18} h/day compressor running`} unit="" />
+          </SectionCard>
+
           {/* Transmission Loads */}
           <SectionCard title="Transmission Loads">
-            <ResultCard title="Wall Load" value={results.wallLoad / (24 * 3600)} unit="kW" />
-            <ResultCard title="Ceiling Load" value={results.ceilingLoad / (24 * 3600)} unit="kW" />
-            <ResultCard title="Floor Load" value={results.floorLoad / (24 * 3600)} unit="kW" />
+            <ResultCard title="Wall Load" value={results.wallLoad / kwDivisor} unit="kW" />
+            <ResultCard title="Ceiling Load" value={results.ceilingLoad / kwDivisor} unit="kW" />
+            <ResultCard title="Floor Load" value={results.floorLoad / kwDivisor} unit="kW" />
             <ResultCard
               title="Total Transmission Load"
-              value={results.totalTransmissionLoad / (24 * 3600)}
+              value={results.totalTransmissionLoad / kwDivisor}
               unit="kW"
             />
           </SectionCard>
 
           {/* Product Loads */}
           <SectionCard title="Product Loads">
-            <ResultCard title="Product Load" value={results.productLoad / (24 * 3600)} unit="kW" />
-            <ResultCard title="Respiration Load" value={results.respirationLoad / (24 * 3600)} unit="kW" />
-            <ResultCard title="Total Product Load" value={(results.productLoad + results.respirationLoad) / (24 * 3600)} unit="kW" />
+            <ResultCard title="Product Load" value={results.productLoad / kwDivisor} unit="kW" />
+            <ResultCard title="Respiration Load" value={results.respirationLoad / kwDivisor} unit="kW" />
+            <ResultCard title="Total Product Load" value={(results.productLoad + results.respirationLoad) / kwDivisor} unit="kW" />
           </SectionCard>
 
           {/* Other Loads */}
           <SectionCard title="Other Loads">
-            <ResultCard title="Air Change Load" value={results.airChangeLoad / (24 * 3600)} unit="kW" />
+            <ResultCard title="Air Change Load" value={results.airChangeLoad / kwDivisor} unit="kW" />
             <ResultCard title="Air Changes per 24 h" value={results.airChangesPer24h ?? 0} unit={results.airChangeIsAuto ? 'auto' : 'manual'} />
-            <ResultCard title="Equipment Load" value={results.equipmentLoad / (24 * 3600)} unit="kW" />
-            <ResultCard title="Lighting Load" value={results.lightLoad / (24 * 3600)} unit="kW" />
-            <ResultCard title="Door Heater Load" value={results.doorHeaterLoad / (24 * 3600)} unit="kW" />
-            <ResultCard title="Occupancy Load" value={results.occupancyLoad / (24 * 3600)} unit="kW" />
+            <ResultCard title="Equipment Load" value={results.equipmentLoad / kwDivisor} unit="kW" />
+            <ResultCard title="Lighting Load" value={results.lightLoad / kwDivisor} unit="kW" />
+            <ResultCard title="Door Heater Load" value={results.doorHeaterLoad / kwDivisor} unit="kW" />
+            <ResultCard title="Occupancy Load" value={results.occupancyLoad / kwDivisor} unit="kW" />
             <ResultCard
               title="Total Miscellaneous Load"
-              value={results.totalMiscLoad / (24 * 3600)}
+              value={results.totalMiscLoad / kwDivisor}
               unit="kW"
             />
           </SectionCard>
 
           {/* Heat Distribution */}
           <SectionCard title="Heat Distribution">
-            <ResultCard title="Sensible Heat" value={results.sensibleHeat / (24 * 3600)} unit="kW" />
-            <ResultCard title="Latent Heat" value={results.latentHeat / (24 * 3600)} unit="kW" />
+            <ResultCard title="Sensible Heat" value={results.sensibleHeat / kwDivisor} unit="kW" />
+            <ResultCard title="Latent Heat" value={results.latentHeat / kwDivisor} unit="kW" />
             <ResultCard title="Sensible Heat Ratio" value={results.sensibleHeatRatio} unit="" />
             <ResultCard title="Air Quantity Required" value={results.airQtyRequired} unit="CFM" />
             <ResultCard title="Maximum Storage" value={results.maximumStorage ?? 0} unit="kg" />

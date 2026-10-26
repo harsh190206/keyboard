@@ -142,6 +142,27 @@ export default function FreezerRoomDetailsTab() {
             onUnitChange={(unit) => updateMiscData('tempUnit', unit as 'C' | 'F')}
             allowNegative={true}
           />
+
+          <InputField
+            label="Compressor Running Hours"
+            value={(miscData.compressorRunningHours ?? 18).toString()}
+            onChangeText={(value) => updateMiscData('compressorRunningHours', parseFloat(value) || 0)}
+            unit="hrs/day"
+          />
+
+          <InputField
+            label="Ambient RH"
+            value={(miscData.ambientRH ?? 55).toString()}
+            onChangeText={(value) => updateMiscData('ambientRH', parseFloat(value) || 0)}
+            unit="%"
+          />
+
+          <InputField
+            label="Inside Room RH"
+            value={(miscData.insideRoomRH ?? 85).toString()}
+            onChangeText={(value) => updateMiscData('insideRoomRH', parseFloat(value) || 0)}
+            unit="%"
+          />
         </View>
 
         <View style={styles.section}>

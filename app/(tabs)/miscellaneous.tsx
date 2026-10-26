@@ -186,6 +186,7 @@ export default function MiscellaneousTab() {
             ambientRH={miscData.ambientRH ?? 55}
             roomTempC={convertTemp(miscData.roomTemp, miscData.tempUnit, 'C')}
             roomRH={miscData.insideRoomRH ?? 85}
+            doorOpeningFrequency={miscData.doorOpeningFrequency || 'low'}
             onChange={(patch) => saveMiscData({ ...miscData, ...patch })}
           />
 

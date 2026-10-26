@@ -20,18 +20,18 @@ interface FrequencyOption {
 }
 
 const FREQUENCY_OPTIONS: FrequencyOption[] = [
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
+  { value: 'low', label: 'Low (air changes × 1.0)' },
+  { value: 'medium', label: 'Medium (air changes × 1.5)' },
+  { value: 'high', label: 'High (air changes × 2.0)' },
 ];
 
 /**
  * DoorOpeningFrequencyPicker Component
  * 
- * Allows user to select door opening frequency level which affects final capacity:
- * - Low: 0% increase (no change)
- * - Medium: +5% to final capacity
- * - High: +10% to final capacity
+ * Allows user to select door opening frequency level, which multiplies the air changes per 24 h:
+ * - Low: x1.0
+ * - Medium: x1.5
+ * - High: x2.0
  */
 export default function DoorOpeningFrequencyPicker({ value, onChange }: DoorOpeningFrequencyPickerProps) {
   const [modalVisible, setModalVisible] = useState(false);

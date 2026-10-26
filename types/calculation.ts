@@ -209,7 +209,7 @@ export interface CalculationResults {
   finalCapacity: number; // Final capacity after door frequency adjustment (TR)
   safetyFactorPercent: number; // User-defined safety factor percentage
   doorFrequency: 'low' | 'medium' | 'high'; // Door opening frequency
-  doorFrequencyMultiplier: number; // Multiplier applied for door frequency
+  doorFrequencyMultiplier: number; // Air change factor for door frequency (1.0 / 1.5 / 2.0)
 
   // Sensible and Latent Heat (Excel structure)
   sensibleHeat: number; // G44 in Excel (kJ/24Hr)
@@ -249,6 +249,11 @@ export interface CalculationResults {
   enthalpyDiffUsed?: number; // kJ/L
   airChangesPer24h?: number;
   airChangeIsAuto?: boolean;
+  baseAirChangesPer24h?: number; // before the door opening frequency factor
+
+  // Plant sizing basis: loads are scaled by 24 / compressor running hours
+  compressorRunningHours?: number;
+  hoursAdjustmentFactor?: number;
 }
 
 // Freezer-specific calculation results

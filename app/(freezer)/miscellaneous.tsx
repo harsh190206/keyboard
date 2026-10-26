@@ -102,6 +102,7 @@ export default function FreezerMiscellaneousTab() {
             ambientRH={miscData.ambientRH ?? 55}
             roomTempC={convertTemp(miscData.roomTemp, miscData.tempUnit, 'C')}
             roomRH={miscData.insideRoomRH ?? 85}
+            doorOpeningFrequency={miscData.doorOpeningFrequency || 'low'}
             onChange={(patch) => saveMiscData({ ...miscData, ...patch })}
           />
         </View>
@@ -175,9 +176,9 @@ export default function FreezerMiscellaneousTab() {
 
           <InputField
             label="Light Power"
-            value={(miscData.lightPowerKw ?? 0).toString()}
-            onChangeText={(value) => handleValueChange('lightPowerKw', value)}
-            unit="kW"
+            value={(Math.round((miscData.lightPowerKw ?? 0) * 1000 * 100) / 100).toString()}
+            onChangeText={(value) => updateMiscData('lightPowerKw', (parseFloat(value) || 0) / 1000)}
+            unit="W"
           />
 
           <InputField
