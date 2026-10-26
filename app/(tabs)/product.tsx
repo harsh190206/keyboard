@@ -7,17 +7,24 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
 import { router } from 'expo-router';
 import { InputField } from '@/components/InputField';
 import { ProductPicker } from '@/components/ProductPicker';
 import { PRODUCT_PRESET_MAP, estimateLatentHeat } from '@/data/products';
-import { calculateInternalVolume, calculateMaximumStorage, convertLength, convertMass } from '@/utils/calculations';
+import { calculateInternalVolume, calculateMaximumStorage, convertLength, convertMass, convertTemp, resolveRespirationHeat } from '@/utils/calculations';
+import { getRespirationHeat, hasRespirationData } from '@/data/respiration';
 import { useStorageContext } from '@/hooks/StorageProvider';
 import { BottomNavArrows } from '@/components/BottomNavArrows';
 
 export default function ProductTab() {
-  const { productData, saveProductData, roomData } = useStorageContext();
+  const { productData, saveProductData, roomData, miscData } = useStorageContext();
+
+  // Respiration heat: table value at the room temperature unless the user enters a value
+  const roomTempC = convertTemp(miscData.roomTemp, miscData.tempUnit, 'C');
+  const respiration = resolveRespirationHeat(productData, roomTempC);
+  const productHasRespirationTable = hasRespirationData(productData.productName);
 
   // Storage capacity (Excel D63/D64): internal volume x gross storage density
   const internalVolume = calculateInternalVolume(
@@ -102,7 +109,8 @@ export default function ProductTab() {
       cpBelowFreezing: preset.cpBelowFreezing,
       freezingPoint: preset.freezingPoint,
       latentHeatOfFusion: estimateLatentHeat(name, preset.cpAboveFreezing),
-      watts: preset.respirationWattsPerTonne,
+      watts: getRespirationHeat(name, roomTempC) ?? preset.respirationWattsPerTonne,
+      respirationAuto: true,
       // If user changes afterwards, they can still edit fields
       overridePreset: false,
     };
@@ -265,14 +273,25 @@ export default function ProductTab() {
 
           <InputField
             label="Respiration Heat"
-            value={productData.watts.toString()}
-            onChangeText={(value) => handleNumericChange('watts', value)}
+            value={respiration.fromTable ? (Math.round(respiration.wattsPerTonne * 10) / 10).toString() : productData.watts.toString()}
+            onChangeText={(value) => saveProductData({ ...productData, watts: parseFloat(value) || 0, respirationAuto: false })}
             unit="W/tonne"
           />
-          <Text style={styles.helperText}>
-            Heat given off by fresh fruit and vegetables while stored. Filled from the selected product; 0 for
-            non-living products.
-          </Text>
+          {respiration.fromTable ? (
+            <Text style={styles.helperText}>
+              From the ASHRAE respiration table for {productData.productName} at the room temperature of{' '}
+              {roomTempC.toFixed(1)}°C (interpolated). Applied to the total stored quantity. Type a value to override.
+            </Text>
+          ) : productHasRespirationTable ? (
+            <TouchableOpacity onPress={() => saveProductData({ ...productData, respirationAuto: true })}>
+              <Text style={styles.linkText}>Manual value. Tap to use the table value for {productData.productName}.</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.helperText}>
+              Heat given off by fresh fruit and vegetables while stored, applied to the total stored quantity. 0 for
+              non-living products.
+            </Text>
+          )}
         </View>
 
         {/* Info section removed for cleaner UI */}
@@ -324,6 +343,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#1e293b',
+  },
+  linkText: {
+    fontSize: 12,
+    color: '#2563eb',
+    marginTop: 6,
+    textDecorationLine: 'underline',
   },
   helperText: {
     fontSize: 12,

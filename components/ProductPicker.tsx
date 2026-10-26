@@ -10,8 +10,8 @@ type Props = {
 const PRODUCT_CATEGORIES = {
     'Dairy Products': ['Butter', 'Cheese Fat', 'Cheese Lean', 'Curd', 'Margarine', 'Milk', 'Ice Cream', 'Dairy Mean Value'],
     'Fish & Seafood': ['Fish', 'Fish Mean Value', 'Sea Fish Fat', 'Sea Fish Lean', 'Sea Fish Smoked', 'Shell Fish', 'Salmon'],
-    'Fruits': ['Pineapple', 'Pineapple (Frozen)', 'Apple', 'Apple (Frozen)', 'Apricots', 'Banana', 'Banana (Frozen)', 'Cherries', 'Grapes', 'Grapes (Frozen)', 'Mangoes', 'Fruit Mean Value', 'Melons', 'Pears', 'Strawberries', 'Strawberries (Frozen)'],
-    'Vegetables': ['Beans', 'Beans (Frozen)', 'Cabbage', 'Carrots', 'Carrots (Frozen)', 'Corn (Frozen)', 'Cucumber', 'Lettuce', 'Mushroom', 'Onions', 'Peas', 'Peas (Frozen)', 'Potato', 'Potato (Frozen)', 'Roots', 'Sweet Potato', 'Tomatoes', 'Vegetables'],
+    'Fruits': ['Pineapple', 'Pineapple (Frozen)', 'Apple', 'Apple (Frozen)', 'Apricots', 'Banana', 'Banana (Frozen)', 'Blueberries', 'Cherries', 'Cranberries', 'Grapes', 'Grapes (Frozen)', 'Mangoes', 'Fruit Mean Value', 'Melons', 'Melons (Honeydew)', 'Oranges', 'Papaya', 'Peaches', 'Pears', 'Plums', 'Strawberries', 'Strawberries (Frozen)'],
+    'Vegetables': ['Asparagus', 'Beans', 'Beans (Frozen)', 'Beets', 'Broccoli', 'Brussels Sprouts', 'Cabbage', 'Carrots', 'Carrots (Frozen)', 'Cauliflower', 'Celery', 'Corn (Frozen)', 'Cucumber', 'Lettuce', 'Mushroom', 'Okra', 'Onions', 'Peas', 'Peas (Frozen)', 'Peppers (Sweet)', 'Potato', 'Potato (Frozen)', 'Roots', 'Sweet Corn', 'Sweet Potato', 'Tomatoes', 'Vegetables'],
     'Meat & Poultry': ['Meat', 'Pork', 'Chicken', 'Chicken (Lean)', 'Turkey', 'Pig Fat', 'Pig Lean'],
     'Other Foods': ['Beer', 'Bread', 'Bread (Frozen)', 'Chocolate', 'Cut Flowers', 'Dough', 'Dough (Frozen)', 'Eggs', 'Eggs (Frozen)', 'Pulses', 'Custom']
 };

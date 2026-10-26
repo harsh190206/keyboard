@@ -14,6 +14,7 @@ import {
   BlastCalculationResults,
 } from '@/hooks/BlastStorageProvider';
 import { estimateLatentHeat } from '@/data/products';
+import { getRespirationHeat } from '@/data/respiration';
 
 // Latent heat of fusion for a cold room product: the user / preset value when given,
 // otherwise the freezer table value or Siebel's estimate (see estimateLatentHeat).
@@ -22,6 +23,20 @@ const getLatentHeatOfFusion = (productData: ProductData): number => {
     return productData.latentHeatOfFusion;
   }
   return estimateLatentHeat(productData.productName, productData.cpAboveFreezing);
+};
+
+// Respiration heat (W/tonne) used in the calculation: the table value at the room
+// (storage) temperature when the product has table data and the user has not chosen a
+// manual value; otherwise the entered value.
+export const resolveRespirationHeat = (
+  productData: Pick<ProductData, 'productName' | 'watts' | 'respirationAuto'>,
+  roomTempC: number,
+): { wattsPerTonne: number; fromTable: boolean } => {
+  if (productData.respirationAuto !== false) {
+    const tableValue = getRespirationHeat(productData.productName, roomTempC);
+    if (tableValue !== undefined) return { wattsPerTonne: tableValue, fromTable: true };
+  }
+  return { wattsPerTonne: productData.watts || 0, fromTable: false };
 };
 
 // Unit conversion utilities
@@ -553,9 +568,11 @@ export const calculateHeatLoad = (
 
   // RESPIRATION LOAD (kJ/24Hr)
   // Total stored mass (kg) x W/tonne x 3.6 x 24 / 1000 (fruit and vegetables only;
-  // non-living products carry 0 W/tonne)
+  // non-living products carry 0 W/tonne). W/tonne comes from the respiration table at
+  // the room temperature where available.
+  const respiration = resolveRespirationHeat(productData, roomTempC);
   const respirationLoad =
-    (respirationMassKg * productData.watts * 3.6 * 24) / 1000;
+    (respirationMassKg * respiration.wattsPerTonne * 3.6 * 24) / 1000;
 
   // AIR CHANGE LOAD (kJ/24Hr) - Excel formula
   // Excel: =C21*D21*3600*F21 = Air change rate * Enthalpy diff * 3600 * Hours
@@ -819,6 +836,8 @@ export const calculateHeatLoad = (
     baseAirChangesPer24h: airChange.baseAirChangesPer24h,
     compressorRunningHours: compressorHours,
     hoursAdjustmentFactor,
+    respirationHeatUsed: respiration.wattsPerTonne,
+    respirationFromTable: respiration.fromTable,
   };
 };
 
@@ -1289,6 +1308,8 @@ export const calculateFreezerHeatLoad = (
     baseAirChangesPer24h: airChange.baseAirChangesPer24h,
     compressorRunningHours: compressorHours,
     hoursAdjustmentFactor,
+    respirationHeatUsed: productData.watts,
+    respirationFromTable: false,
   };
 };
 

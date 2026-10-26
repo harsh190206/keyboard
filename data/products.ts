@@ -5,7 +5,10 @@ export type ProductPreset = {
   cpAboveFreezing: number; // kJ/kg·K
   cpBelowFreezing?: number; // kJ/kg·K (for products that may freeze)
   freezingPoint?: number; // °C (freezing point temperature)
-  respirationWattsPerTonne: number; // W/Tonne
+  latentHeatOfFusion?: number; // kJ/kg (from the client's product tables where available)
+  // W/Tonne. Used only for products without respiration table data; for the others the
+  // value is taken from data/respiration.ts at the room temperature.
+  respirationWattsPerTonne: number;
   hasRespiration: boolean;
 };
 
@@ -162,10 +165,11 @@ export const PRODUCT_PRESETS: ProductPreset[] = [
   },
   {
     name: 'Banana',
-    cpAboveFreezing: 4.1,
-    cpBelowFreezing: 2.1,
-    freezingPoint: -2.0,
-    respirationWattsPerTonne: 350,
+    cpAboveFreezing: 3.56, // Thermal Properties table (client)
+    cpBelowFreezing: 2.03,
+    freezingPoint: -0.8,
+    latentHeatOfFusion: 248,
+    respirationWattsPerTonne: 242.5,
     hasRespiration: true,
   },
   {
@@ -186,10 +190,11 @@ export const PRODUCT_PRESETS: ProductPreset[] = [
   },
   {
     name: 'Mangoes',
-    cpAboveFreezing: 3.7,
-    cpBelowFreezing: 2.0,
-    freezingPoint: -1.3,
-    respirationWattsPerTonne: 300,
+    cpAboveFreezing: 3.74, // Thermal Properties table (client)
+    cpBelowFreezing: 1.95,
+    freezingPoint: -0.9,
+    latentHeatOfFusion: 273,
+    respirationWattsPerTonne: 449.1,
     hasRespiration: true,
   },
   {
@@ -210,10 +215,11 @@ export const PRODUCT_PRESETS: ProductPreset[] = [
   },
   {
     name: 'Pears',
-    cpAboveFreezing: 3.5,
-    cpBelowFreezing: 1.9,
+    cpAboveFreezing: 3.08, // Thermal Properties table (client)
+    cpBelowFreezing: 2.06,
     freezingPoint: -1.6,
-    respirationWattsPerTonne: 180,
+    latentHeatOfFusion: 280,
+    respirationWattsPerTonne: 266,
     hasRespiration: true,
   },
   {
@@ -224,6 +230,23 @@ export const PRODUCT_PRESETS: ProductPreset[] = [
     respirationWattsPerTonne: 280,
     hasRespiration: true,
   },
+  {
+    name: 'Papaya',
+    cpAboveFreezing: 3.51, // Thermal Properties table (client)
+    cpBelowFreezing: 1.75,
+    freezingPoint: -1.24,
+    latentHeatOfFusion: 293.9,
+    respirationWattsPerTonne: 291,
+    hasRespiration: true,
+  },
+  // Client Table 7 "Storage requirements and properties of perishable products"
+  // (converted: Btu/lb.F x 4.1868, Btu/lb x 2.326, F -> C)
+  { name: 'Blueberries', cpAboveFreezing: 3.60, cpBelowFreezing: 1.88, freezingPoint: -1.3, latentHeatOfFusion: 274, respirationWattsPerTonne: 0, hasRespiration: true },
+  { name: 'Cranberries', cpAboveFreezing: 3.77, cpBelowFreezing: 1.93, freezingPoint: -0.9, latentHeatOfFusion: 288, respirationWattsPerTonne: 0, hasRespiration: true },
+  { name: 'Melons (Honeydew)', cpAboveFreezing: 3.94, cpBelowFreezing: 2.01, freezingPoint: -0.9, latentHeatOfFusion: 307, respirationWattsPerTonne: 0, hasRespiration: true },
+  { name: 'Oranges', cpAboveFreezing: 3.77, cpBelowFreezing: 1.93, freezingPoint: -0.8, latentHeatOfFusion: 288, respirationWattsPerTonne: 0, hasRespiration: true },
+  { name: 'Peaches', cpAboveFreezing: 3.77, cpBelowFreezing: 1.93, freezingPoint: -0.9, latentHeatOfFusion: 288, respirationWattsPerTonne: 0, hasRespiration: true },
+  { name: 'Plums', cpAboveFreezing: 3.68, cpBelowFreezing: 1.88, freezingPoint: -0.8, latentHeatOfFusion: 274, respirationWattsPerTonne: 0, hasRespiration: true },
 
   // Other Food Items
   {
@@ -279,8 +302,8 @@ export const PRODUCT_PRESETS: ProductPreset[] = [
     cpAboveFreezing: 2.5,
     cpBelowFreezing: 1.5,
     freezingPoint: -0.5,
-    respirationWattsPerTonne: 30,
-    hasRespiration: true,
+    respirationWattsPerTonne: 0, // no respiration load for pulses (client)
+    hasRespiration: false,
   },
   {
     name: 'Ice',
@@ -424,12 +447,23 @@ export const PRODUCT_PRESETS: ProductPreset[] = [
   },
   {
     name: 'Tomatoes',
-    cpAboveFreezing: 3.9,
-    cpBelowFreezing: 2.2,
-    freezingPoint: -0.5,
-    respirationWattsPerTonne: 200,
+    cpAboveFreezing: 4.02, // Thermal Properties table (client)
+    cpBelowFreezing: 1.77,
+    freezingPoint: -0.6,
+    latentHeatOfFusion: 311,
+    respirationWattsPerTonne: 120.3,
     hasRespiration: true,
   },
+  // Client Table 7 (converted: Btu/lb.F x 4.1868, Btu/lb x 2.326, F -> C)
+  { name: 'Asparagus', cpAboveFreezing: 3.94, cpBelowFreezing: 2.01, freezingPoint: -0.6, latentHeatOfFusion: 312, respirationWattsPerTonne: 0, hasRespiration: true },
+  { name: 'Beets', cpAboveFreezing: 3.77, cpBelowFreezing: 1.93, freezingPoint: -1.1, latentHeatOfFusion: 293, respirationWattsPerTonne: 0, hasRespiration: true },
+  { name: 'Broccoli', cpAboveFreezing: 3.85, cpBelowFreezing: 1.97, freezingPoint: -1.7, latentHeatOfFusion: 302, respirationWattsPerTonne: 0, hasRespiration: true },
+  { name: 'Brussels Sprouts', cpAboveFreezing: 3.68, cpBelowFreezing: 1.93, freezingPoint: -0.8, latentHeatOfFusion: 284, respirationWattsPerTonne: 0, hasRespiration: true },
+  { name: 'Cauliflower', cpAboveFreezing: 3.89, cpBelowFreezing: 1.97, freezingPoint: -1.7, latentHeatOfFusion: 307, respirationWattsPerTonne: 0, hasRespiration: true },
+  { name: 'Celery', cpAboveFreezing: 3.98, cpBelowFreezing: 2.01, freezingPoint: -0.5, latentHeatOfFusion: 314, respirationWattsPerTonne: 0, hasRespiration: true },
+  { name: 'Okra', cpAboveFreezing: 3.85, cpBelowFreezing: 1.93, freezingPoint: -1.8, latentHeatOfFusion: 298, respirationWattsPerTonne: 0, hasRespiration: true },
+  { name: 'Peppers (Sweet)', cpAboveFreezing: 3.94, cpBelowFreezing: 1.97, freezingPoint: -0.7, latentHeatOfFusion: 307, respirationWattsPerTonne: 0, hasRespiration: true },
+  { name: 'Sweet Corn', cpAboveFreezing: 3.31, cpBelowFreezing: 1.76, freezingPoint: -0.6, latentHeatOfFusion: 247, respirationWattsPerTonne: 0, hasRespiration: true },
   {
     name: 'Vegetables Generic',
     cpAboveFreezing: 3.89,
@@ -598,6 +632,8 @@ export const PRODUCT_PRESET_MAP = PRODUCT_PRESETS.reduce<
 //   2. otherwise Siebel's estimate from the water content implied by Cp above freezing:
 //        water fraction x = (Cp_above - 0.84) / 3.35,  L = 335 x
 export const estimateLatentHeat = (name: string | undefined, cpAboveFreezing: number): number => {
+  const preset = name ? PRODUCT_PRESET_MAP[name] : undefined;
+  if (preset?.latentHeatOfFusion !== undefined) return preset.latentHeatOfFusion;
   const key = (name || '').toLowerCase();
   if (key && key !== 'custom') {
     const match = freezerProducts.find((p) => p.name.toLowerCase() === key);

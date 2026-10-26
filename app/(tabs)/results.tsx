@@ -103,7 +103,7 @@ export default function ColdRoomResultsTab() {
             { label: 'Specific Heat Below Freezing', value: productData.cpBelowFreezing?.toString() || '1.8', unit: 'kJ/kg °C' },
             { label: 'Freezing Temp', value: productData.freezingPoint?.toString() || '0', unit: `°${productData.tempUnit || 'C'}` },
             { label: 'Latent Heat of Freezing', value: (productData.latentHeatOfFusion ?? 0).toString(), unit: 'kJ/kg' },
-            { label: 'Respiration Heat', value: productData.watts?.toString() || '0.00', unit: 'W/Tonne' },
+            { label: 'Respiration Heat', value: (results.respirationHeatUsed ?? 0).toFixed(1), unit: results.respirationFromTable ? 'W/Tonne (table)' : 'W/Tonne' },
           ]
         },
         {
@@ -384,6 +384,7 @@ export default function ColdRoomResultsTab() {
           {/* Product Loads */}
           <SectionCard title="Product Loads">
             <ResultCard title="Product Load" value={results.productLoad / kwDivisor} unit="kW" />
+            <ResultCard title="Respiration Heat" value={results.respirationHeatUsed ?? 0} unit={results.respirationFromTable ? 'W/tonne (table)' : 'W/tonne'} />
             <ResultCard title="Respiration Load" value={results.respirationLoad / kwDivisor} unit="kW" />
             <ResultCard title="Total Product Load" value={(results.productLoad + results.respirationLoad) / kwDivisor} unit="kW" />
           </SectionCard>

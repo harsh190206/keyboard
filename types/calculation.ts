@@ -47,7 +47,10 @@ export interface ProductData {
 
   // Respiration
   respirationMass: number;
-  watts: number;
+  watts: number; // W/tonne entered by the user (used when no table value applies)
+  // true / undefined: use the respiration table value at the room temperature when the
+  // product has table data; false: always use the entered watts
+  respirationAuto?: boolean;
 
   // Storage capacity: gross storage density per ft³ of internal volume (Excel D63)
   storageDensity?: number; // kg/ft³
@@ -250,6 +253,10 @@ export interface CalculationResults {
   airChangesPer24h?: number;
   airChangeIsAuto?: boolean;
   baseAirChangesPer24h?: number; // before the door opening frequency factor
+
+  // Respiration heat actually used (W/tonne) and whether it came from the table
+  respirationHeatUsed?: number;
+  respirationFromTable?: boolean;
 
   // Plant sizing basis: loads are scaled by 24 / compressor running hours
   compressorRunningHours?: number;
