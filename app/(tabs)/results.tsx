@@ -66,9 +66,9 @@ export default function ColdRoomResultsTab() {
         userName: getUserDisplayName(), // Use helper function with fallback
         projectName: roomData.projectName,
         finalResults: [
-        { label: 'Total Load', value: finalCapacityKw.toFixed(2), unit: 'kW' },
-        { label: 'Load', value: finalCapacityBtuHr.toFixed(0), unit: 'BTU/hr' },
-        { label: 'Safety Factor', value: safetyFactorPercent.toFixed(1), unit: '%' },
+        { label: 'Sum of All Loads', value: baseLoadKw.toFixed(2), unit: 'kW' },
+        { label: `Total Load (incl. ${safetyFactorPercent}% Safety)`, value: finalCapacityKw.toFixed(2), unit: 'kW' },
+        { label: 'Total Load (incl. Safety)', value: finalCapacityBtuHr.toFixed(0), unit: 'BTU/hr' },
       ],
       inputs: [
         {
@@ -124,7 +124,7 @@ export default function ColdRoomResultsTab() {
           items: [
             { label: 'Sum of All Loads', value: baseLoadKw.toFixed(2), unit: 'kW' },
             { label: `Safety Allowance (${safetyFactorPercent}%)`, value: (baseLoadKw * safetyFactorPercent / 100).toFixed(2), unit: 'kW' },
-            { label: 'Total Load', value: finalCapacityKw.toFixed(2), unit: 'kW' },
+            { label: `Total Load (incl. ${safetyFactorPercent}% Safety)`, value: finalCapacityKw.toFixed(2), unit: 'kW' },
             { label: 'Load Basis', value: `${results.compressorRunningHours ?? 18} h/day compressor running`, unit: '' },
           ]
         },
@@ -336,7 +336,7 @@ export default function ColdRoomResultsTab() {
           {/* Main Results - Highlighted */}
           <SectionCard title="Main Results">
             <ResultCard
-              title="Total Load"
+              title={`Total Load (incl. ${safetyFactorPercent}% safety)`}
               value={finalCapacityKw}
               unit="kW"
               isHighlighted={true}
@@ -365,7 +365,7 @@ export default function ColdRoomResultsTab() {
           <SectionCard title="Load Summary">
             <ResultCard title="Sum of All Loads" value={baseLoadKw} unit="kW" />
             <ResultCard title={`Safety Allowance (${safetyFactorPercent}%)`} value={baseLoadKw * safetyFactorPercent / 100} unit="kW" />
-            <ResultCard title="Total Load" value={finalCapacityKw} unit="kW" isHighlighted={true} />
+            <ResultCard title={`Total Load (incl. ${safetyFactorPercent}% safety)`} value={finalCapacityKw} unit="kW" isHighlighted={true} />
             <ResultCard title="Load Basis" value={`${results.compressorRunningHours ?? 18} h/day compressor running`} unit="" />
           </SectionCard>
 

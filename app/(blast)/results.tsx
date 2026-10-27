@@ -58,9 +58,9 @@ export default function BlastResultsTab() {
                 userName: getUserDisplayName(), // Use helper function with fallback
                 projectName: roomData.projectName,
                 finalResults: [
-                    { label: 'Total Load', value: finalCapacityKw.toFixed(2), unit: 'kW' },
-                    { label: 'Load', value: finalCapacityBtuHr.toFixed(0), unit: 'BTU/hr' },
-                    { label: 'Safety Factor', value: safetyFactorPercent.toFixed(1), unit: '%' },
+                    { label: 'Sum of All Loads', value: baseLoadKw.toFixed(2), unit: 'kW' },
+                    { label: `Total Load (incl. ${safetyFactorPercent}% Safety)`, value: finalCapacityKw.toFixed(2), unit: 'kW' },
+                    { label: 'Total Load (incl. Safety)', value: finalCapacityBtuHr.toFixed(0), unit: 'BTU/hr' },
                 ],
                 inputs: [
                     {
@@ -116,7 +116,7 @@ export default function BlastResultsTab() {
           items: [
             { label: 'Sum of All Loads', value: baseLoadKw.toFixed(2), unit: 'kW' },
             { label: `Safety Allowance (${safetyFactorPercent}%)`, value: (baseLoadKw * safetyFactorPercent / 100).toFixed(2), unit: 'kW' },
-            { label: 'Total Load', value: finalCapacityKw.toFixed(2), unit: 'kW' },
+            { label: `Total Load (incl. ${safetyFactorPercent}% Safety)`, value: finalCapacityKw.toFixed(2), unit: 'kW' },
             { label: 'Load Basis', value: `per batch (${productData.batchHours || 8} h)`, unit: '' },
           ]
         },
@@ -331,7 +331,7 @@ export default function BlastResultsTab() {
                             isHighlighted={true}
                         />
                         <ResultCard
-                            title={`Total Load (with ${safetyFactorPercent.toFixed(1)}% Safety)`}
+                            title={`Total Load (incl. ${safetyFactorPercent}% safety)`}
                             value={finalCapacityKw}
                             unit="kW"
                             isHighlighted={true}
@@ -371,7 +371,7 @@ export default function BlastResultsTab() {
                     <SectionCard title="Load Summary">
                       <ResultCard title="Sum of All Loads" value={baseLoadKw} unit="kW" />
                       <ResultCard title={`Safety Allowance (${safetyFactorPercent}%)`} value={baseLoadKw * safetyFactorPercent / 100} unit="kW" />
-                      <ResultCard title="Total Load" value={finalCapacityKw} unit="kW" isHighlighted={true} />
+                      <ResultCard title={`Total Load (incl. ${safetyFactorPercent}% safety)`} value={finalCapacityKw} unit="kW" isHighlighted={true} />
                       <ResultCard title="Load Basis" value={`per batch (${productData.batchHours || 8} h)`} unit="" />
                     </SectionCard>
 
