@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
 	<key>API_KEY</key>
-	<string>AIzaSyAhoOdpwML6EQ9wu75t64Ipe165J7FZucM</string>
+	<string>AIzaSyCexgfmZvYlp9Bum_mUeHLMVB6HX8IJO04</string>
 	<key>GCM_SENDER_ID</key>
-	<string>553571608389</string>
+	<string>464695118320</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>com.enzo.coolcalc</string>
 	<key>PROJECT_ID</key>
-	<string>enzo-d373f</string>
+	<string>enzocoolcal-ddf39</string>
 	<key>STORAGE_BUCKET</key>
-	<string>enzo-d373f.firebasestorage.app</string>
+	<string>enzocoolcal-ddf39.firebasestorage.app</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:553571608389:ios:96408d2ff6c125fca8402c</string>
+	<string>1:464695118320:ios:01c3428c3b973593c83535</string>
 </dict>
 </plist>
